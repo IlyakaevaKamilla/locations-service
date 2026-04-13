@@ -60,16 +60,16 @@ start_api() {
 }
 
 # ---------- Swarm secrets (если используются) ----------
-if [ -n "${DB_PROFILE_SERVICE_HOST_FILE:-}" ]; then
-  DB_HOST=$(cat "$DB_PROFILE_SERVICE_HOST_FILE")
+if [ -n "${DB_LOCATION_SERVICE_HOST_FILE:-}" ]; then
+  DB_HOST=$(cat "$DB_LOCATION_SERVICE_HOST_FILE")
 fi
 
-if [ -n "${DB_PROFILE_SERVICE_PORT_FILE:-}" ]; then
-  DB_PORT=$(cat "$DB_PROFILE_SERVICE_PORT_FILE")
+if [ -n "${DB_LOCATION_SERVICE_PORT_FILE:-}" ]; then
+  DB_PORT=$(cat "$DB_LOCATION_SERVICE_PORT_FILE")
 fi
 
-if [ -n "${DB_PROFILE_SERVICE_USER_FILE:-}" ]; then
-  DB_USER=$(cat "$DB_PROFILE_SERVICE_USER_FILE")
+if [ -n "${DB_LOCATION_SERVICE_USER_FILE:-}" ]; then
+  DB_USER=$(cat "$DB_LOCATION_SERVICE_USER_FILE")
 fi
 
 if [ -n "${REDIS_HOST_FILE:-}" ]; then
