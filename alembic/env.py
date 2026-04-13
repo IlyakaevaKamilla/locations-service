@@ -9,7 +9,8 @@ from alembic import context
 
 
 from config import settings
-from app.db.base import Base  
+from app.db.base import Base
+from app.db import models  # noqa: F401
 
 
 config = context.config
@@ -48,8 +49,7 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    
-    # Создаем асинхронный движок
+
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
