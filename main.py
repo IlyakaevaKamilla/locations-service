@@ -29,6 +29,10 @@ def create_app() -> FastAPI:
         openapi_url="/api/locations/openapi.json",
     )
     app.middleware("http")(user_context_middleware)
+    @app.get("/api/locations/health")
+    async def health_check():
+        return {"status": "ok"}
+    
     app.include_router(locations_router)
 
     @app.get("/api/locations/health")
