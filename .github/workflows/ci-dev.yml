@@ -10,7 +10,7 @@ on:
 
 env:
   DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
-  GATEWAY_SWARM_SERVICE: ${{ vars.GATEWAY_SWARM_SERVICE || 'gate_gateway-service' }}
+  LOCATION_SWARM_SERVICE: ${{ vars.LOCATION_SWARM_SERVICE || 'apps_location-service' }}
 
 jobs:
   lint_test:
@@ -58,18 +58,18 @@ jobs:
       - name: Compute image ref
         id: image
         run: |
-          image_ref="${DOCKERHUB_NAMESPACE}/gateway-service:dev-${GITHUB_SHA::7}"
-          echo "GATEWAY_IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
+          image_ref="${DOCKERHUB_NAMESPACE}/location-service:dev-${GITHUB_SHA::7}"
+          echo "LOCATION_IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
           echo "ref=$image_ref" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push gateway-service
+      - name: Build and push location-service
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
             ${{ steps.image.outputs.ref }}
-            ${{ env.DOCKERHUB_NAMESPACE }}/gateway-service:dev
+            ${{ env.DOCKERHUB_NAMESPACE }}/location-service:dev
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -81,7 +81,7 @@ jobs:
     environment: DEV
     steps:
       - name: Compute image ref
-        run: echo "GATEWAY_IMAGE_REF=${DOCKERHUB_NAMESPACE}/gateway-service:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+        run: echo "LOCATION_IMAGE_REF=${DOCKERHUB_NAMESPACE}/location-service:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -101,5 +101,5 @@ jobs:
           docker --context swarm service update \
             --with-registry-auth \
             --detach=false \
-            --image "$GATEWAY_IMAGE_REF" \
-            "$GATEWAY_SWARM_SERVICE"
+            --image "$LOCATION_IMAGE_REF" \
+            "$LOCATION_SWARM_SERVICE"
