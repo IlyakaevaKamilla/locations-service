@@ -123,6 +123,38 @@ def test_list_locations_enriches_favorites(monkeypatch):
     assert result.items[0].is_favorite is True
 
 
+def test_list_locations_trims_region_filter(monkeypatch):
+    session = FakeSession()
+    service = LocationService(session)
+
+    async def fake_list_locations(db, **kwargs):
+        assert db is session
+        assert kwargs["region"] == "Краснодарский край"
+        return [], 0
+
+    monkeypatch.setattr("app.services.locations.list_locations", fake_list_locations)
+
+    result = asyncio.run(service.list_locations(region="  Краснодарский край  "))
+
+    assert result.total == 0
+
+
+def test_list_locations_ignores_blank_region_filter(monkeypatch):
+    session = FakeSession()
+    service = LocationService(session)
+
+    async def fake_list_locations(db, **kwargs):
+        assert db is session
+        assert kwargs["region"] is None
+        return [], 0
+
+    monkeypatch.setattr("app.services.locations.list_locations", fake_list_locations)
+
+    result = asyncio.run(service.list_locations(region="   "))
+
+    assert result.total == 0
+
+
 def test_list_locations_without_user_does_not_load_favorites(monkeypatch):
     session = FakeSession()
     service = LocationService(session)
