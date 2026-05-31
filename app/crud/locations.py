@@ -9,10 +9,12 @@ from app.db.models import FavoriteLocation, Location
 
 
 def _apply_text_filter(statement: Select, field, value: str):
-    return statement.where(func.lower(field) == value.lower())
+    return statement.where(func.lower(field) == value.strip().lower())
 
 
 def _apply_array_filter(statement: Select, field, value: int | str):
+    if isinstance(value, str):
+        value = value.strip().lower()
     return statement.where(field.contains([value]))
 
 

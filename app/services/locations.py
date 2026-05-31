@@ -26,13 +26,6 @@ class LocationService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    @staticmethod
-    def _normalize_text_filter(value: str | None) -> str | None:
-        if value is None:
-            return None
-        value = value.strip()
-        return value or None
-
     async def get_location(self, location_id: int, user_id: int | None = None) -> LocationRead:
         location = await get_location_by_id(self.session, location_id)
         if location is None:
@@ -54,7 +47,6 @@ class LocationService:
         offset: int = 0,
         user_id: int | None = None,
     ) -> LocationListResponse:
-        region = self._normalize_text_filter(region)
         locations, total = await list_locations(
             self.session,
             search=search,
@@ -93,7 +85,6 @@ class LocationService:
         limit: int = 20,
         offset: int = 0,
     ) -> LocationListResponse:
-        region = self._normalize_text_filter(region)
         locations, total = await list_favorite_locations(
             self.session,
             user_id=user_id,
