@@ -5,12 +5,18 @@ import asyncio
 
 import pytest
 from fastapi import HTTPException
+from fastapi import FastAPI
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from app.crud.locations import apply_location_filters  # noqa E402
+from app.db.models import Location  # noqa E402
+from app.routes.locations import _parse_activity_ids, _split_query_values, read_locations, router  # noqa E402
 from app.services.locations import LocationService # noqa E402
 
 
@@ -121,6 +127,62 @@ def test_list_locations_enriches_favorites(monkeypatch):
 
     assert result.total == 1
     assert result.items[0].is_favorite is True
+
+
+def test_list_locations_passes_multi_value_filters(monkeypatch):
+    session = FakeSession()
+    service = LocationService(session)
+    location = make_location(id=1)
+
+    async def fake_list_locations(db, **kwargs):
+        assert db is session
+        assert kwargs["region"] == ["Краснодарский край", "Карачаево-Черкесия"]
+        assert kwargs["style"] == ["ski", "freeride"]
+        assert kwargs["activity_id"] == [12, 15]
+        return [location], 1
+
+    monkeypatch.setattr("app.services.locations.list_locations", fake_list_locations)
+
+    result = asyncio.run(
+        service.list_locations(
+            region=["Краснодарский край", "Карачаево-Черкесия"],
+            style=["ski", "freeride"],
+            activity_id=[12, 15],
+        )
+    )
+
+    assert result.total == 1
+
+
+def test_read_locations_preserves_repeated_query_values():
+    service = SimpleNamespace()
+
+    async def fake_list_locations(**kwargs):
+        service.kwargs = kwargs
+        return SimpleNamespace()
+
+    service.list_locations = fake_list_locations
+
+    asyncio.run(
+        read_locations(
+            search=None,
+            region=["Краснодарский край", "Карачаево-Черкесия"],
+            city=None,
+            country=None,
+            activity_id=[12, 15],
+            style=["ski", "freeride"],
+            level=None,
+            is_active=True,
+            limit=20,
+            offset=0,
+            user_id=None,
+            service=service,
+        )
+    )
+
+    assert service.kwargs["region"] == ["Краснодарский край", "Карачаево-Черкесия"]
+    assert service.kwargs["activity_id"] == [12, 15]
+    assert service.kwargs["style"] == ["ski", "freeride"]
 
 
 def test_list_locations_without_user_does_not_load_favorites(monkeypatch):
@@ -256,3 +318,53 @@ def test_list_filter_options(monkeypatch):
     result = asyncio.run(service.list_filter_options())
 
     assert result.activity_ids == [12]
+
+
+def test_split_query_values_supports_repeated_and_csv_values():
+    assert _split_query_values(["ski, freeride", "mountain"]) == ["ski", "freeride", "mountain"]
+    assert _split_query_values(["  "]) is None
+
+
+def test_split_query_values_rejects_long_values():
+    with pytest.raises(HTTPException) as exc_info:
+        _split_query_values(["freeride"], max_length=3)
+
+    assert exc_info.value.status_code == 422
+
+
+def test_parse_activity_ids_supports_repeated_and_csv_values():
+    assert _parse_activity_ids(["12, 15", "18"]) == [12, 15, 18]
+
+
+def test_parse_activity_ids_rejects_invalid_values():
+    with pytest.raises(ValueError) as exc_info:
+        _parse_activity_ids(["12, abc"])
+
+    assert str(exc_info.value) == "activity_id must be an integer"
+
+
+def test_locations_openapi_keeps_activity_id_as_integer_array():
+    app = FastAPI()
+    app.include_router(router)
+
+    parameters = app.openapi()["paths"]["/api/locations"]["get"]["parameters"]
+    activity_id_schema = next(parameter["schema"] for parameter in parameters if parameter["name"] == "activity_id")
+
+    assert activity_id_schema["anyOf"][0]["type"] == "array"
+    assert activity_id_schema["anyOf"][0]["items"]["type"] == "integer"
+
+
+def test_apply_location_filters_uses_in_inside_text_field_and_overlap_inside_array_field():
+    statement = apply_location_filters(
+        select(Location),
+        region=["Краснодарский край", "Карачаево-Черкесия"],
+        style=["ski", "freeride"],
+        is_active=True,
+    )
+
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "lower(locations.region) IN" in compiled
+    assert "locations.styles &&" in compiled
+    assert "locations.is_active IS true" in compiled
+    assert " AND " in compiled
