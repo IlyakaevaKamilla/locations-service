@@ -1,35 +1,77 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TypeVar
 
 from sqlalchemy import Select, and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import FavoriteLocation, Location
 
+T = TypeVar("T", int, str)
+StrFilter = str | Sequence[str]
+IntFilter = int | Sequence[int]
 
-def _apply_text_filter(statement: Select, field, value: str):
-    return statement.where(func.lower(field) == value.strip().lower())
 
-
-def _apply_array_filter(statement: Select, field, value: int | str):
+def _as_sequence(value: T | Sequence[T] | None) -> list[T]:
+    """Convert a scalar or sequence filter value to a list."""
+    if value is None:
+        return []
     if isinstance(value, str):
-        value = value.strip().lower()
-    return statement.where(field.contains([value]))
+        return [value]
+    if isinstance(value, Sequence):
+        return list(value)
+    return [value]
+
+
+def _normalize_text_values(value: StrFilter | None) -> list[str]:
+    """Lowercase and split text filter values from scalar, list, or CSV input."""
+    values: list[str] = []
+    for item in _as_sequence(value):
+        values.extend(part.strip().lower() for part in item.split(",") if part.strip())
+    return values
+
+
+def _normalize_int_values(value: IntFilter | None) -> list[int]:
+    """Split and cast integer filter values from scalar, list, or CSV input."""
+    values: list[int] = []
+    for item in _as_sequence(value):
+        if isinstance(item, str):
+            values.extend(int(part.strip()) for part in item.split(",") if part.strip())
+        else:
+            values.append(item)
+    return values
+
+
+def _apply_text_filter(statement: Select, field, value: StrFilter | None):
+    """Apply a case-insensitive IN filter for a single text column."""
+    values = _normalize_text_values(value)
+    if not values:
+        return statement
+    return statement.where(func.lower(field).in_(values))
+
+
+def _apply_array_filter(statement: Select, field, value: IntFilter | StrFilter | None, *, item_type: type[int] | type[str]):
+    """Apply PostgreSQL array overlap filter for any selected value."""
+    values = _normalize_int_values(value) if item_type is int else _normalize_text_values(value)
+    if not values:
+        return statement
+    return statement.where(field.overlap(values))
 
 
 def apply_location_filters(
     statement: Select,
     *,
     search: str | None = None,
-    region: str | None = None,
-    city: str | None = None,
-    country: str | None = None,
-    activity_id: int | None = None,
-    style: str | None = None,
-    level: str | None = None,
+    region: StrFilter | None = None,
+    city: StrFilter | None = None,
+    country: StrFilter | None = None,
+    activity_id: IntFilter | None = None,
+    style: StrFilter | None = None,
+    level: StrFilter | None = None,
     is_active: bool | None = None,
 ):
+    """Apply search and location filters, using OR inside fields and AND between fields."""
     if search:
         pattern = f"%{search.strip()}%"
         statement = statement.where(
@@ -49,11 +91,11 @@ def apply_location_filters(
     if country:
         statement = _apply_text_filter(statement, Location.country, country)
     if activity_id is not None:
-        statement = _apply_array_filter(statement, Location.activity_ids, activity_id)
+        statement = _apply_array_filter(statement, Location.activity_ids, activity_id, item_type=int)
     if style:
-        statement = _apply_array_filter(statement, Location.styles, style)
+        statement = _apply_array_filter(statement, Location.styles, style, item_type=str)
     if level:
-        statement = _apply_array_filter(statement, Location.levels, level)
+        statement = _apply_array_filter(statement, Location.levels, level, item_type=str)
     if is_active is not None:
         statement = statement.where(Location.is_active.is_(is_active))
 
@@ -74,16 +116,17 @@ async def list_locations(
     session: AsyncSession,
     *,
     search: str | None = None,
-    region: str | None = None,
-    city: str | None = None,
-    country: str | None = None,
-    activity_id: int | None = None,
-    style: str | None = None,
-    level: str | None = None,
+    region: StrFilter | None = None,
+    city: StrFilter | None = None,
+    country: StrFilter | None = None,
+    activity_id: IntFilter | None = None,
+    style: StrFilter | None = None,
+    level: StrFilter | None = None,
     is_active: bool | None = True,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[Sequence[Location], int]:
+    """Return a paginated filtered location list and the total matching count."""
     base_statement = apply_location_filters(
         select(Location),
         search=search,
@@ -109,16 +152,17 @@ async def list_favorite_locations(
     *,
     user_id: int,
     search: str | None = None,
-    region: str | None = None,
-    city: str | None = None,
-    country: str | None = None,
-    activity_id: int | None = None,
-    style: str | None = None,
-    level: str | None = None,
+    region: StrFilter | None = None,
+    city: StrFilter | None = None,
+    country: StrFilter | None = None,
+    activity_id: IntFilter | None = None,
+    style: StrFilter | None = None,
+    level: StrFilter | None = None,
     is_active: bool | None = True,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[Sequence[Location], int]:
+    """Return a paginated filtered list of a user's favorite locations and total count."""
     base_statement = (
         select(Location)
         .join(FavoriteLocation, FavoriteLocation.location_id == Location.id)

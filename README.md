@@ -11,6 +11,22 @@
 - `POST /api/locations/{location_id}/favorite` - добавить в избранное;
 - `DELETE /api/locations/{location_id}/favorite` - удалить из избранного.
 
+### Фильтры локаций
+
+`region`, `city`, `country`, `style`, `level` и `activity_id` принимают одиночное значение, повторяющиеся query-параметры и CSV.
+
+Примеры:
+
+- `GET /api/locations?region=Краснодарский край`
+- `GET /api/locations?region=Краснодарский край&region=Карачаево-Черкесия`
+- `GET /api/locations?region=Краснодарский край,Карачаево-Черкесия&style=ski,freeride`
+- `GET /api/locations?activity_id=1&activity_id=2`
+- `GET /api/locations?activity_id=1,2`
+
+Значения внутри одного поля объединяются через `OR`, разные поля - через `AND`. Например `region=Краснодарский край,Карачаево-Черкесия&style=ski,freeride` ищет локации в одном из указанных регионов и с одним из указанных стилей. `activity_id` в OpenAPI описан как массив integer, но также поддерживает CSV для удобства клиентов.
+
+`search` и `is_active` применяются как общие ограничения ко всему результату.
+
 Локации создаются, обновляются и удаляются через отдельную админку. Этот сервис только читает каталог и хранит пользовательские избранные.
 
 ## Конфигурация

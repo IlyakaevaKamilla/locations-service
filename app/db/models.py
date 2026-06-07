@@ -58,7 +58,15 @@ class Location(Base):
 
     favorites: Mapped[list["FavoriteLocation"]] = relationship(back_populates="location", cascade="all, delete-orphan")
 
-    __table_args__ = (Index("ix_locations_country_region_city", "country", "region", "city"),)
+    __table_args__ = (
+        Index("ix_locations_country_region_city", "country", "region", "city"),
+        Index("ix_locations_region_lower", func.lower(region)),
+        Index("ix_locations_city_lower", func.lower(city)),
+        Index("ix_locations_country_lower", func.lower(country)),
+        Index("ix_locations_activity_ids_gin", activity_ids, postgresql_using="gin"),
+        Index("ix_locations_styles_gin", styles, postgresql_using="gin"),
+        Index("ix_locations_levels_gin", levels, postgresql_using="gin"),
+    )
 
 
 class FavoriteLocation(Base):

@@ -21,6 +21,9 @@ from app.schemas.locations import (
     LocationRead,
 )
 
+StrFilter = str | list[str]
+IntFilter = int | list[int]
+
 
 class LocationService:
     def __init__(self, session: AsyncSession):
@@ -36,17 +39,18 @@ class LocationService:
         self,
         *,
         search: str | None = None,
-        region: str | None = None,
-        city: str | None = None,
-        country: str | None = None,
-        activity_id: int | None = None,
-        style: str | None = None,
-        level: str | None = None,
+        region: StrFilter | None = None,
+        city: StrFilter | None = None,
+        country: StrFilter | None = None,
+        activity_id: IntFilter | None = None,
+        style: StrFilter | None = None,
+        level: StrFilter | None = None,
         is_active: bool | None = True,
         limit: int = 20,
         offset: int = 0,
         user_id: int | None = None,
     ) -> LocationListResponse:
+        """List locations with optional favorite flags for the current user."""
         locations, total = await list_locations(
             self.session,
             search=search,
@@ -75,16 +79,17 @@ class LocationService:
         user_id: int,
         *,
         search: str | None = None,
-        region: str | None = None,
-        city: str | None = None,
-        country: str | None = None,
-        activity_id: int | None = None,
-        style: str | None = None,
-        level: str | None = None,
+        region: StrFilter | None = None,
+        city: StrFilter | None = None,
+        country: StrFilter | None = None,
+        activity_id: IntFilter | None = None,
+        style: StrFilter | None = None,
+        level: StrFilter | None = None,
         is_active: bool | None = True,
         limit: int = 20,
         offset: int = 0,
     ) -> LocationListResponse:
+        """List current user's favorite locations with the shared location filters."""
         locations, total = await list_favorite_locations(
             self.session,
             user_id=user_id,
@@ -131,6 +136,7 @@ class LocationService:
         user_id: int | None = None,
         favorite_ids: set[int] | None = None,
     ) -> LocationRead:
+        """Convert a location model to an API schema and enrich it with favorite state."""
         read = LocationRead.model_validate(location)
         if user_id is not None:
             if favorite_ids is None:
