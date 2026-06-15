@@ -4,8 +4,8 @@
 
 ## API
 
-- `GET /api/locations` - список локаций с фильтрами `search`, `region`, `city`, `country`, `activity_id`, `style`, `level`, `limit`, `offset`;
-- `GET /api/locations/{location_id}` - карточка локации;
+- `GET /api/locations` - список активных локаций с фильтрами `search`, `region`, `city`, `country`, `activity_id`, `style`, `level`, `limit`, `offset`;
+- `GET /api/locations/{location_id}` - карточка активной локации;
 - `GET /api/locations/filters` - доступные значения фильтров;
 - `GET /api/locations/favorites` - избранные локации текущего пользователя;
 - `POST /api/locations/{location_id}/favorite` - добавить в избранное;
@@ -25,7 +25,25 @@
 
 Значения внутри одного поля объединяются через `OR`, разные поля - через `AND`. Например `region=Краснодарский край,Карачаево-Черкесия&style=ski,freeride` ищет локации в одном из указанных регионов и с одним из указанных стилей. `activity_id` в OpenAPI описан как массив integer, но также поддерживает CSV для удобства клиентов.
 
-`search` и `is_active` применяются как общие ограничения ко всему результату.
+`search` применяется как общее ограничение ко всему результату. Публичный API всегда возвращает только активные локации и не принимает `is_active` как query-параметр.
+
+`location_id` и `activity_id` должны помещаться в диапазон PostgreSQL `integer`: от `1` до `2147483647`. Значения выше этого диапазона возвращают `404 Not Found`, чтобы не передавать некорректный integer в БД.
+
+### Активность локаций
+
+По умолчанию сервисные методы чтения возвращают только локации с `is_active=true`:
+
+- `LocationService.get_location(...)`;
+- `LocationService.list_locations(...)`;
+- `get_location_by_id(..., only_active=True)`.
+
+Для админских сценариев, где нужны все локации, включая неактивные, используется явное снятие ограничения:
+
+- `LocationService.get_location_for_admin(...)`;
+- `LocationService.list_all_locations(...)`;
+- `get_location_by_id(..., only_active=False)`.
+
+В избранное можно добавлять только активные локации. Попытка добавить неактивную локацию возвращает `400`.
 
 Локации создаются, обновляются и удаляются через отдельную админку. Этот сервис только читает каталог и хранит пользовательские избранные.
 

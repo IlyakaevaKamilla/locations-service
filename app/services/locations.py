@@ -30,9 +30,11 @@ class LocationService:
         self.session = session
 
     async def get_location(self, location_id: int, user_id: int | None = None) -> LocationRead:
-        location = await get_location_by_id(self.session, location_id)
-        if location is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+        location = await self._get_location(location_id)
+        return await self._to_read(location, user_id=user_id)
+
+    async def get_location_for_admin(self, location_id: int, user_id: int | None = None) -> LocationRead:
+        location = await self._get_location(location_id, only_active=False)
         return await self._to_read(location, user_id=user_id)
 
     async def list_locations(
@@ -45,14 +47,11 @@ class LocationService:
         activity_id: IntFilter | None = None,
         style: StrFilter | None = None,
         level: StrFilter | None = None,
-        is_active: bool | None = True,
         limit: int = 20,
         offset: int = 0,
         user_id: int | None = None,
     ) -> LocationListResponse:
-        """List locations with optional favorite flags for the current user."""
-        locations, total = await list_locations(
-            self.session,
+        return await self._list_locations(
             search=search,
             region=region,
             city=city,
@@ -60,19 +59,39 @@ class LocationService:
             activity_id=activity_id,
             style=style,
             level=level,
-            is_active=is_active,
+            is_active=True,
             limit=limit,
             offset=offset,
+            user_id=user_id,
         )
-        favorite_ids: set[int] = set()
-        if user_id is not None and locations:
-            favorite_ids = await list_favorite_location_ids(
-                self.session,
-                user_id=user_id,
-                location_ids=[location.id for location in locations],
-            )
-        items = [await self._to_read(location, user_id=user_id, favorite_ids=favorite_ids) for location in locations]
-        return LocationListResponse(items=items, total=total, limit=limit, offset=offset)
+
+    async def list_all_locations(
+        self,
+        *,
+        search: str | None = None,
+        region: StrFilter | None = None,
+        city: StrFilter | None = None,
+        country: StrFilter | None = None,
+        activity_id: IntFilter | None = None,
+        style: StrFilter | None = None,
+        level: StrFilter | None = None,
+        limit: int = 20,
+        offset: int = 0,
+        user_id: int | None = None,
+    ) -> LocationListResponse:
+        return await self._list_locations(
+            search=search,
+            region=region,
+            city=city,
+            country=country,
+            activity_id=activity_id,
+            style=style,
+            level=level,
+            is_active=None,
+            limit=limit,
+            offset=offset,
+            user_id=user_id,
+        )
 
     async def list_favorites(
         self,
@@ -108,9 +127,7 @@ class LocationService:
         return LocationListResponse(items=items, total=total, limit=limit, offset=offset)
 
     async def add_favorite(self, location_id: int, user_id: int) -> FavoriteStateResponse:
-        location = await get_location_by_id(self.session, location_id)
-        if location is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+        await self._get_location(location_id, only_active=True)
         try:
             await add_favorite_location(self.session, user_id=user_id, location_id=location_id)
             await self.session.commit()
@@ -128,6 +145,50 @@ class LocationService:
     async def list_filter_options(self) -> LocationFilterOptions:
         options = await list_location_filter_options(self.session)
         return LocationFilterOptions(**options)
+
+    async def _get_location(self, location_id: int, *, only_active: bool = True):
+        location = await get_location_by_id(self.session, location_id, only_active=only_active)
+        if location is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+        return location
+
+    async def _list_locations(
+        self,
+        *,
+        search: str | None = None,
+        region: StrFilter | None = None,
+        city: StrFilter | None = None,
+        country: StrFilter | None = None,
+        activity_id: IntFilter | None = None,
+        style: StrFilter | None = None,
+        level: StrFilter | None = None,
+        is_active: bool | None = True,
+        limit: int = 20,
+        offset: int = 0,
+        user_id: int | None = None,
+    ) -> LocationListResponse:
+        locations, total = await list_locations(
+            self.session,
+            search=search,
+            region=region,
+            city=city,
+            country=country,
+            activity_id=activity_id,
+            style=style,
+            level=level,
+            is_active=is_active,
+            limit=limit,
+            offset=offset,
+        )
+        favorite_ids: set[int] = set()
+        if user_id is not None and locations:
+            favorite_ids = await list_favorite_location_ids(
+                self.session,
+                user_id=user_id,
+                location_ids=[location.id for location in locations],
+            )
+        items = [await self._to_read(location, user_id=user_id, favorite_ids=favorite_ids) for location in locations]
+        return LocationListResponse(items=items, total=total, limit=limit, offset=offset)
 
     async def _to_read(
         self,

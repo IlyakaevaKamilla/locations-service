@@ -53,10 +53,23 @@ def _apply_text_filter(statement: Select, field, value: StrFilter | None):
 
 def _apply_array_filter(statement: Select, field, value: IntFilter | StrFilter | None, *, item_type: type[int] | type[str]):
     """Apply PostgreSQL array overlap filter for any selected value."""
-    values = _normalize_int_values(value) if item_type is int else _normalize_text_values(value)
+    if item_type is int:
+        values = _normalize_int_values(value)
+        if not values:
+            return statement
+        return statement.where(field.overlap(values))
+
+    values = _normalize_text_values(value)
     if not values:
         return statement
-    return statement.where(field.overlap(values))
+
+    array_values = func.unnest(field).table_valued("value")
+    return statement.where(
+        select(1)
+        .select_from(array_values)
+        .where(func.lower(array_values.c.value).in_(values))
+        .exists()
+    )
 
 
 def apply_location_filters(
@@ -102,8 +115,16 @@ def apply_location_filters(
     return statement
 
 
-async def get_location_by_id(session: AsyncSession, location_id: int) -> Location | None:
-    result = await session.execute(select(Location).where(Location.id == location_id))
+async def get_location_by_id(
+    session: AsyncSession,
+    location_id: int,
+    *,
+    only_active: bool = True,
+) -> Location | None:
+    statement = select(Location).where(Location.id == location_id)
+    if only_active:
+        statement = statement.where(Location.is_active.is_(True))
+    result = await session.execute(statement)
     return result.scalar_one_or_none()
 
 
