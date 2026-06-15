@@ -31,14 +31,10 @@ class LocationService:
 
     async def get_location(self, location_id: int, user_id: int | None = None) -> LocationRead:
         location = await self._get_location(location_id)
-        if location is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
         return await self._to_read(location, user_id=user_id)
 
     async def get_location_for_admin(self, location_id: int, user_id: int | None = None) -> LocationRead:
         location = await self._get_location(location_id, only_active=False)
-        if location is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
         return await self._to_read(location, user_id=user_id)
 
     async def list_locations(
@@ -131,14 +127,7 @@ class LocationService:
         return LocationListResponse(items=items, total=total, limit=limit, offset=offset)
 
     async def add_favorite(self, location_id: int, user_id: int) -> FavoriteStateResponse:
-        location = await self._get_location(location_id, only_active=False)
-        if location is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
-        if not location.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only active locations can be added to favorites",
-            )
+        await self._get_location(location_id, only_active=True)
         try:
             await add_favorite_location(self.session, user_id=user_id, location_id=location_id)
             await self.session.commit()
@@ -158,7 +147,10 @@ class LocationService:
         return LocationFilterOptions(**options)
 
     async def _get_location(self, location_id: int, *, only_active: bool = True):
-        return await get_location_by_id(self.session, location_id, only_active=only_active)
+        location = await get_location_by_id(self.session, location_id, only_active=only_active)
+        if location is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+        return location
 
     async def _list_locations(
         self,

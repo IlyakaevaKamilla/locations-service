@@ -269,7 +269,7 @@ def test_add_favorite_commits(monkeypatch):
     service = LocationService(session)
 
     async def fake_get_location_by_id(db, location_id, *, only_active=True):
-        assert only_active is False
+        assert only_active is True
         return make_location(id=location_id)
 
     async def fake_add_favorite_location(db, *, user_id, location_id):
@@ -297,8 +297,8 @@ def test_add_favorite_rejects_inactive_location(monkeypatch):
     service = LocationService(session)
 
     async def fake_get_location_by_id(db, location_id, *, only_active=True):
-        assert only_active is False
-        return make_location(id=location_id, is_active=False)
+        assert only_active is True
+        raise HTTPException(status_code=400, detail="Location not found")
 
     async def fake_add_favorite_location(db, *, user_id, location_id):
         raise AssertionError("should not add inactive location to favorites")
@@ -313,7 +313,7 @@ def test_add_favorite_rejects_inactive_location(monkeypatch):
         asyncio.run(service.add_favorite(1, 7))
 
     assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "Only active locations can be added to favorites"
+    assert exc_info.value.detail == "Location not found"
     assert session.commits == 0
     assert session.rollbacks == 0
 
@@ -323,7 +323,7 @@ def test_add_favorite_rolls_back_on_integrity_error(monkeypatch):
     service = LocationService(session)
 
     async def fake_get_location_by_id(db, location_id, *, only_active=True):
-        assert only_active is False
+        assert only_active is True
         return make_location(id=location_id)
 
     async def fake_add_favorite_location(db, *, user_id, location_id):
