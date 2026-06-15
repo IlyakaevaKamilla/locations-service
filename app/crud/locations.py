@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TypeVar
 
-from sqlalchemy import Select, and_, delete, func, or_, select
+from sqlalchemy import Select, and_, delete, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import FavoriteLocation, Location
@@ -56,7 +56,7 @@ def _apply_array_filter(statement: Select, field, value: IntFilter | StrFilter |
     if item_type is int:
         values = _normalize_int_values(value)
         if not values:
-            return statement
+            return statement.where(false())
         return statement.where(field.overlap(values))
 
     values = _normalize_text_values(value)
