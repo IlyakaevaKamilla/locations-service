@@ -111,6 +111,11 @@ class LocationService:
         location = await get_location_by_id(self.session, location_id)
         if location is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+        if not location.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only active locations can be added to favorites",
+            )
         try:
             await add_favorite_location(self.session, user_id=user_id, location_id=location_id)
             await self.session.commit()
