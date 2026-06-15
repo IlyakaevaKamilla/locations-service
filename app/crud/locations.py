@@ -102,8 +102,16 @@ def apply_location_filters(
     return statement
 
 
-async def get_location_by_id(session: AsyncSession, location_id: int) -> Location | None:
-    result = await session.execute(select(Location).where(Location.id == location_id))
+async def get_location_by_id(
+    session: AsyncSession,
+    location_id: int,
+    *,
+    only_active: bool = True,
+) -> Location | None:
+    statement = select(Location).where(Location.id == location_id)
+    if only_active:
+        statement = statement.where(Location.is_active.is_(True))
+    result = await session.execute(statement)
     return result.scalar_one_or_none()
 
 
