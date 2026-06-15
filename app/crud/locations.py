@@ -63,7 +63,7 @@ def _apply_array_filter(statement: Select, field, value: IntFilter | StrFilter |
     if not values:
         return statement
 
-    array_values = func.unnest(field).table_valued("value")
+    array_values = func.unnest(field).table_valued("value").render_derived()
     return statement.where(
         select(1)
         .select_from(array_values)
@@ -80,8 +80,8 @@ def apply_location_filters(
     city: StrFilter | None = None,
     country: StrFilter | None = None,
     activity_id: IntFilter | None = None,
-    style: StrFilter | None = None,
-    level: StrFilter | None = None,
+    styles: StrFilter | None = None,
+    levels: StrFilter | None = None,
     is_active: bool | None = None,
 ):
     """Apply search and location filters, using OR inside fields and AND between fields."""
@@ -105,10 +105,10 @@ def apply_location_filters(
         statement = _apply_text_filter(statement, Location.country, country)
     if activity_id is not None:
         statement = _apply_array_filter(statement, Location.activity_ids, activity_id, item_type=int)
-    if style:
-        statement = _apply_array_filter(statement, Location.styles, style, item_type=str)
-    if level:
-        statement = _apply_array_filter(statement, Location.levels, level, item_type=str)
+    if styles:
+        statement = _apply_array_filter(statement, Location.styles, styles, item_type=str)
+    if levels:
+        statement = _apply_array_filter(statement, Location.levels, levels, item_type=str)
     if is_active is not None:
         statement = statement.where(Location.is_active.is_(is_active))
 
@@ -141,8 +141,8 @@ async def list_locations(
     city: StrFilter | None = None,
     country: StrFilter | None = None,
     activity_id: IntFilter | None = None,
-    style: StrFilter | None = None,
-    level: StrFilter | None = None,
+    styles: StrFilter | None = None,
+    levels: StrFilter | None = None,
     is_active: bool | None = True,
     limit: int = 20,
     offset: int = 0,
@@ -155,8 +155,8 @@ async def list_locations(
         city=city,
         country=country,
         activity_id=activity_id,
-        style=style,
-        level=level,
+        styles=styles,
+        levels=levels,
         is_active=is_active,
     )
 

@@ -158,7 +158,7 @@ def test_list_locations_passes_multi_value_filters(monkeypatch):
     async def fake_list_locations(db, **kwargs):
         assert db is session
         assert kwargs["region"] == ["Краснодарский край", "Карачаево-Черкесия"]
-        assert kwargs["style"] == ["ski", "freeride"]
+        assert kwargs["styles"] == ["ski", "freeride"]
         assert kwargs["activity_id"] == [12, 15]
         assert kwargs["is_active"] is True
         return [location], 1
@@ -168,7 +168,7 @@ def test_list_locations_passes_multi_value_filters(monkeypatch):
     result = asyncio.run(
         service.list_locations(
             region=["Краснодарский край", "Карачаево-Черкесия"],
-            style=["ski", "freeride"],
+            styles=["ski", "freeride"],
             activity_id=[12, 15],
         )
     )
@@ -210,8 +210,8 @@ def test_read_locations_preserves_repeated_query_values():
             city=None,
             country=None,
             activity_id=[12, 15],
-            style=["ski", "freeride"],
-            level=None,
+            styles=["ski", "freeride"],
+            levels=None,
             limit=20,
             offset=0,
             user_id=None,
@@ -221,7 +221,7 @@ def test_read_locations_preserves_repeated_query_values():
 
     assert service.kwargs["region"] == ["Краснодарский край", "Карачаево-Черкесия"]
     assert service.kwargs["activity_id"] == [12, 15]
-    assert service.kwargs["style"] == ["ski", "freeride"]
+    assert service.kwargs["styles"] == ["ski", "freeride"]
 
 
 def test_list_locations_without_user_does_not_load_favorites(monkeypatch):
@@ -442,7 +442,7 @@ def test_apply_location_filters_uses_case_insensitive_filters_and_array_overlap_
         select(Location),
         region=["Краснодарский край", "Карачаево-Черкесия"],
         activity_id=[1, 2],
-        level=["Любитель"],
+        levels=["Любитель"],
         is_active=True,
     )
 
@@ -451,6 +451,7 @@ def test_apply_location_filters_uses_case_insensitive_filters_and_array_overlap_
     assert "lower(locations.region) IN" in compiled
     assert "locations.activity_ids &&" in compiled
     assert "unnest(locations.levels)" in compiled
+    assert "(value)" in compiled
     assert "lower(" in compiled
     assert "locations.is_active IS true" in compiled
     assert " AND " in compiled
