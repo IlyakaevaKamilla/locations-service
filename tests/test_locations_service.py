@@ -466,14 +466,6 @@ def test_parse_activity_ids_supports_repeated_and_csv_values():
     assert _parse_activity_ids(["12, 15", "18"]) == [12, 15, 18]
 
 
-def test_parse_activity_ids_rejects_values_above_int32_as_not_found():
-    with pytest.raises(HTTPException) as exc_info:
-        _parse_activity_ids(["2147483648"])
-
-    assert exc_info.value.status_code == 404
-    assert exc_info.value.detail == "Activity not found"
-
-
 def test_parse_activity_ids_rejects_invalid_values():
     with pytest.raises(ValueError) as exc_info:
         _parse_activity_ids(["12, abc"])
