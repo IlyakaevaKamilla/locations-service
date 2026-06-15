@@ -54,7 +54,7 @@ def _parse_activity_ids(values: Any) -> list[int] | None:
         if activity_id < 1:
             raise ValueError("activity_id must be greater than or equal to 1")
         if activity_id > MAX_INT32:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activity not found")
+            continue
         activity_ids.append(activity_id)
     return activity_ids
 
