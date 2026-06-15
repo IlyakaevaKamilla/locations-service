@@ -437,17 +437,20 @@ def test_locations_openapi_keeps_activity_id_as_integer_array():
     assert activity_id_schema["anyOf"][0]["items"]["type"] == "integer"
 
 
-def test_apply_location_filters_uses_in_inside_text_field_and_overlap_inside_array_field():
+def test_apply_location_filters_uses_case_insensitive_filters_and_array_overlap_for_ids():
     statement = apply_location_filters(
         select(Location),
         region=["Краснодарский край", "Карачаево-Черкесия"],
-        style=["ski", "freeride"],
+        activity_id=[1, 2],
+        level=["Любитель"],
         is_active=True,
     )
 
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "lower(locations.region) IN" in compiled
-    assert "locations.styles &&" in compiled
+    assert "locations.activity_ids &&" in compiled
+    assert "unnest(locations.levels)" in compiled
+    assert "lower(" in compiled
     assert "locations.is_active IS true" in compiled
     assert " AND " in compiled
