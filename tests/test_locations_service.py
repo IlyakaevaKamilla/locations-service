@@ -16,7 +16,14 @@ if str(ROOT) not in sys.path:
 
 from app.crud.locations import apply_location_filters  # noqa E402
 from app.db.models import Location  # noqa E402
-from app.routes.locations import _parse_activity_ids, _parse_location_id, _split_query_values, read_locations, router  # noqa E402
+from app.routes.locations import (  # noqa E402
+    _parse_activity_ids,
+    _parse_location_id,
+    _split_query_values,
+    read_favorite_locations,
+    read_locations,
+    router,
+)
 from app.services.locations import LocationService # noqa E402
 
 
@@ -222,6 +229,62 @@ def test_read_locations_preserves_repeated_query_values():
     assert service.kwargs["region"] == ["Краснодарский край", "Карачаево-Черкесия"]
     assert service.kwargs["activity_id"] == [12, 15]
     assert service.kwargs["styles"] == ["ski", "freeride"]
+
+
+def test_read_favorite_locations_passes_route_filters_to_service():
+    service = SimpleNamespace()
+
+    async def fake_list_favorites(
+        *,
+        user_id,
+        search,
+        region,
+        city,
+        country,
+        activity_id,
+        styles,
+        levels,
+        is_active,
+        limit,
+        offset,
+    ):
+        service.kwargs = {
+            "user_id": user_id,
+            "search": search,
+            "region": region,
+            "city": city,
+            "country": country,
+            "activity_id": activity_id,
+            "styles": styles,
+            "levels": levels,
+            "is_active": is_active,
+            "limit": limit,
+            "offset": offset,
+        }
+        return SimpleNamespace()
+
+    service.list_favorites = fake_list_favorites
+
+    asyncio.run(
+        read_favorite_locations(
+            user_id=7,
+            service=service,
+            search=None,
+            region=None,
+            city=None,
+            country=None,
+            activity_id=None,
+            styles=["ski, freeride"],
+            levels=["Любитель"],
+            limit=20,
+            offset=0,
+            is_active=True,
+        )
+    )
+
+    assert service.kwargs["user_id"] == 7
+    assert service.kwargs["styles"] == ["ski", "freeride"]
+    assert service.kwargs["levels"] == ["Любитель"]
 
 
 def test_list_locations_without_user_does_not_load_favorites(monkeypatch):
