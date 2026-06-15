@@ -466,6 +466,11 @@ def test_parse_activity_ids_supports_repeated_and_csv_values():
     assert _parse_activity_ids(["12, 15", "18"]) == [12, 15, 18]
 
 
+def test_parse_activity_ids_ignores_values_above_int32():
+    assert _parse_activity_ids(["2147483648"]) == []
+    assert _parse_activity_ids(["12", "2147483648"]) == [12]
+
+
 def test_parse_activity_ids_rejects_invalid_values():
     with pytest.raises(ValueError) as exc_info:
         _parse_activity_ids(["12, abc"])
@@ -510,3 +515,12 @@ def test_apply_location_filters_uses_case_insensitive_filters_and_array_overlap_
     assert "lower(" in compiled
     assert "locations.is_active IS true" in compiled
     assert " AND " in compiled
+
+
+def test_apply_location_filters_empty_activity_ids_match_no_locations():
+    statement = apply_location_filters(select(Location), activity_id=[], is_active=True)
+
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "false" in compiled
+    assert "locations.activity_ids &&" not in compiled
