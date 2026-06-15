@@ -177,8 +177,8 @@ async def list_favorite_locations(
     city: StrFilter | None = None,
     country: StrFilter | None = None,
     activity_id: IntFilter | None = None,
-    style: StrFilter | None = None,
-    level: StrFilter | None = None,
+    styles: StrFilter | None = None,
+    levels: StrFilter | None = None,
     is_active: bool | None = True,
     limit: int = 20,
     offset: int = 0,
@@ -196,8 +196,8 @@ async def list_favorite_locations(
         city=city,
         country=country,
         activity_id=activity_id,
-        style=style,
-        level=level,
+        styles=styles,
+        levels=levels,
         is_active=is_active,
     )
 
