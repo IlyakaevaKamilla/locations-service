@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from pydantic import BeforeValidator
 
 from app.dependencies.auth import get_current_user_id, get_optional_current_user_id
@@ -13,6 +13,7 @@ from app.schemas.locations import (
 from app.services.locations import LocationService, get_location_service
 
 router = APIRouter(prefix="/api/locations", tags=["locations"])
+MAX_INT32 = 2_147_483_647
 
 
 def _split_query_values(values: list[str] | None, *, max_length: int | None = None) -> list[str] | None:
@@ -52,8 +53,23 @@ def _parse_activity_ids(values: Any) -> list[int] | None:
             raise ValueError("activity_id must be an integer") from exc
         if activity_id < 1:
             raise ValueError("activity_id must be greater than or equal to 1")
+        if activity_id > MAX_INT32:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activity not found")
         activity_ids.append(activity_id)
     return activity_ids
+
+
+def _parse_location_id(location_id: str = Path(...)) -> int:
+    try:
+        parsed_location_id = int(location_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="location_id must be an integer",
+        ) from exc
+    if parsed_location_id < 1 or parsed_location_id > MAX_INT32:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
+    return parsed_location_id
 
 
 ActivityIdQuery = Annotated[
@@ -61,6 +77,7 @@ ActivityIdQuery = Annotated[
     BeforeValidator(_parse_activity_ids),
     Query(description="Activity ids. Supports repeated values and CSV, e.g. activity_id=1&activity_id=2 or 1,2."),
 ]
+LocationIdPath = Annotated[int, Depends(_parse_location_id)]
 
 
 @router.get("", response_model=LocationListResponse)
@@ -132,7 +149,7 @@ async def read_favorite_locations(
 
 @router.get("/{location_id}", response_model=LocationRead)
 async def read_location(
-    location_id: int,
+    location_id: LocationIdPath,
     user_id: int | None = Depends(get_optional_current_user_id),
     service: LocationService = Depends(get_location_service),
 ):
@@ -141,7 +158,7 @@ async def read_location(
 
 @router.post("/{location_id}/favorite", response_model=FavoriteStateResponse, status_code=status.HTTP_201_CREATED)
 async def add_favorite_location(
-    location_id: int,
+    location_id: LocationIdPath,
     user_id: int = Depends(get_current_user_id),
     service: LocationService = Depends(get_location_service),
 ):
@@ -150,7 +167,7 @@ async def add_favorite_location(
 
 @router.delete("/{location_id}/favorite", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_favorite_location(
-    location_id: int,
+    location_id: LocationIdPath,
     user_id: int = Depends(get_current_user_id),
     service: LocationService = Depends(get_location_service),
 ):

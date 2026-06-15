@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 
 from app.crud.locations import apply_location_filters  # noqa E402
 from app.db.models import Location  # noqa E402
-from app.routes.locations import _parse_activity_ids, _split_query_values, read_locations, router  # noqa E402
+from app.routes.locations import _parse_activity_ids, _parse_location_id, _split_query_values, read_locations, router  # noqa E402
 from app.services.locations import LocationService # noqa E402
 
 
@@ -403,11 +403,27 @@ def test_parse_activity_ids_supports_repeated_and_csv_values():
     assert _parse_activity_ids(["12, 15", "18"]) == [12, 15, 18]
 
 
+def test_parse_activity_ids_rejects_values_above_int32_as_not_found():
+    with pytest.raises(HTTPException) as exc_info:
+        _parse_activity_ids(["2147483648"])
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Activity not found"
+
+
 def test_parse_activity_ids_rejects_invalid_values():
     with pytest.raises(ValueError) as exc_info:
         _parse_activity_ids(["12, abc"])
 
     assert str(exc_info.value) == "activity_id must be an integer"
+
+
+def test_parse_location_id_rejects_values_above_int32_as_not_found():
+    with pytest.raises(HTTPException) as exc_info:
+        _parse_location_id("2147483648")
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Location not found"
 
 
 def test_locations_openapi_keeps_activity_id_as_integer_array():
