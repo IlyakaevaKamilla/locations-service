@@ -12,6 +12,10 @@ LOGGING_CONFIG = {
             "formatter": "default",
         },
     },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
     "loggers": {
         "location_service": {
             "handlers": ["console"],

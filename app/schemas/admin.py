@@ -4,7 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class LocationBase(BaseModel):
+class AdminLocationBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     region: str = Field(min_length=1, max_length=255)
     city: str | None = Field(default=None, max_length=255)
@@ -20,35 +20,20 @@ class LocationBase(BaseModel):
     slug: str | None = None
 
 
-class LocationRead(LocationBase):
+class AdminLocationRead(AdminLocationBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     created_at: datetime
     updated_at: datetime
-    is_favorite: bool = False
 
 
-class LocationCreate(LocationBase):
+class AdminLocationCreate(AdminLocationBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class LocationListResponse(BaseModel):
-    items: list[LocationRead]
+class AdminLocationListResponse(BaseModel):
+    items: list[AdminLocationRead]
     total: int
     limit: int
     offset: int
-
-
-class LocationFilterOptions(BaseModel):
-    regions: list[str] = Field(default_factory=list)
-    cities: list[str] = Field(default_factory=list)
-    countries: list[str] = Field(default_factory=list)
-    activity_ids: list[int] = Field(default_factory=list)
-    styles: list[str] = Field(default_factory=list)
-    levels: list[str] = Field(default_factory=list)
-
-
-class FavoriteStateResponse(BaseModel):
-    location_id: int
-    is_favorite: bool

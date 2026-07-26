@@ -6,6 +6,7 @@ from typing import TypeVar
 from sqlalchemy import Select, and_, delete, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 from app.db.models import FavoriteLocation, Location
 
 T = TypeVar("T", int, str)
@@ -51,7 +52,13 @@ def _apply_text_filter(statement: Select, field, value: StrFilter | None):
     return statement.where(func.lower(field).in_(values))
 
 
-def _apply_array_filter(statement: Select, field, value: IntFilter | StrFilter | None, *, item_type: type[int] | type[str]):
+def _apply_array_filter(
+    statement: Select,
+    field,
+    value: IntFilter | StrFilter | None,
+    *,
+    item_type: type[int] | type[str],
+):
     """Apply PostgreSQL array overlap filter for any selected value."""
     if item_type is int:
         values = _normalize_int_values(value)
@@ -104,11 +111,17 @@ def apply_location_filters(
     if country:
         statement = _apply_text_filter(statement, Location.country, country)
     if activity_id is not None:
-        statement = _apply_array_filter(statement, Location.activity_ids, activity_id, item_type=int)
+        statement = _apply_array_filter(
+            statement, Location.activity_ids, activity_id, item_type=int
+        )
     if styles:
-        statement = _apply_array_filter(statement, Location.styles, styles, item_type=str)
+        statement = _apply_array_filter(
+            statement, Location.styles, styles, item_type=str
+        )
     if levels:
-        statement = _apply_array_filter(statement, Location.levels, levels, item_type=str)
+        statement = _apply_array_filter(
+            statement, Location.levels, levels, item_type=str
+        )
     if is_active is not None:
         statement = statement.where(Location.is_active.is_(is_active))
 
@@ -215,7 +228,9 @@ async def list_favorite_location_ids(
     user_id: int,
     location_ids: list[int] | None = None,
 ) -> set[int]:
-    statement = select(FavoriteLocation.location_id).where(FavoriteLocation.user_id == user_id)
+    statement = select(FavoriteLocation.location_id).where(
+        FavoriteLocation.user_id == user_id
+    )
     if location_ids:
         statement = statement.where(FavoriteLocation.location_id.in_(location_ids))
     result = await session.execute(statement)
@@ -252,14 +267,19 @@ async def remove_favorite_location(
     return result.rowcount > 0
 
 
-async def list_location_filter_options(session: AsyncSession) -> dict[str, list[int] | list[str]]:
+async def list_location_filter_options(
+    session: AsyncSession,
+) -> dict[str, list[int] | list[str]]:
     filters = Location.is_active.is_(True)
 
     regions_result = await session.execute(
         select(Location.region).where(filters).distinct().order_by(Location.region)
     )
     cities_result = await session.execute(
-        select(Location.city).where(filters, Location.city.is_not(None)).distinct().order_by(Location.city)
+        select(Location.city)
+        .where(filters, Location.city.is_not(None))
+        .distinct()
+        .order_by(Location.city)
     )
     countries_result = await session.execute(
         select(Location.country).where(filters).distinct().order_by(Location.country)
@@ -275,10 +295,55 @@ async def list_location_filter_options(session: AsyncSession) -> dict[str, list[
     )
 
     return {
-        "regions": [value for value in regions_result.scalars().all() if value is not None],
-        "cities": [value for value in cities_result.scalars().all() if value is not None],
-        "countries": [value for value in countries_result.scalars().all() if value is not None],
-        "activity_ids": [int(value) for value in activity_ids_result.scalars().all() if value is not None],
-        "styles": [value for value in styles_result.scalars().all() if value is not None],
-        "levels": [value for value in levels_result.scalars().all() if value is not None],
+        "regions": [
+            value for value in regions_result.scalars().all() if value is not None
+        ],
+        "cities": [
+            value for value in cities_result.scalars().all() if value is not None
+        ],
+        "countries": [
+            value for value in countries_result.scalars().all() if value is not None
+        ],
+        "activity_ids": [
+            int(value)
+            for value in activity_ids_result.scalars().all()
+            if value is not None
+        ],
+        "styles": [
+            value for value in styles_result.scalars().all() if value is not None
+        ],
+        "levels": [
+            value for value in levels_result.scalars().all() if value is not None
+        ],
     }
+
+
+async def admin_create_location(
+    session: AsyncSession, locations_in: AdminLocationCreate
+) -> AdminLocationRead:
+    location_data = locations_in.model_dump(exclude_unset=True)
+    new_location = Location(**location_data)
+
+    session.add(new_location)
+    await session.commit()
+    await session.refresh(new_location)
+
+    return new_location
+
+
+async def admin_delete_location_by_id(session: AsyncSession, location_id: int) -> bool:
+    """
+    Удаляет локацию по id.
+    Возвращает True если удален, иначе False.
+    """
+
+    result = await session.execute(select(Location).where(Location.id == location_id))
+    location = result.scalar_one_or_none()
+
+    if not location:
+        return False
+
+    await session.delete(location)
+    await session.commit()
+
+    return True
