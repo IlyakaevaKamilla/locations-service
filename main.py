@@ -5,11 +5,12 @@ from fastapi import FastAPI
 
 from app.middlerware.request_context import user_context_middleware
 from app.routes.locations import router as locations_router
+from app.routes.admin import router as admin_router
 from app.utils.logging import LOGGING_CONFIG
 from config import settings
 
 logging.config.dictConfig(LOGGING_CONFIG)
-logger = logging.getLogger("location_service")
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -28,13 +29,16 @@ def create_app() -> FastAPI:
         redoc_url="/api/locations/redoc",
         openapi_url="/api/locations/openapi.json",
     )
-    
+
     app.middleware("http")(user_context_middleware)
+
     @app.get("/api/locations/health")
     async def health_check():
         return {"status": "ok"}
-    
+
     app.include_router(locations_router)
+
+    app.include_router(admin_router)
 
     return app
 
