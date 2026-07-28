@@ -106,7 +106,7 @@ async def get_list_locations(
     offset: OffsetQuery = 0,
 ):
     """Return locations using multi-value filters with OR inside each field."""
-    return await service.list_locations(
+    return await service.list_all_locations(
         search=search,
         region=_split_query_values(region, max_length=255),
         city=_split_query_values(city, max_length=255),
@@ -131,7 +131,7 @@ async def read_location(
     location_id: LocationIdPath,
     service: LocationServiceDep,
 ):
-    return await service.get_location(location_id)
+    return await service.get_location_for_admin(location_id)
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=AdminLocationRead)
