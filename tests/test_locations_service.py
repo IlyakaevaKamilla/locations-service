@@ -16,10 +16,12 @@ if str(ROOT) not in sys.path:
 
 from app.crud.locations import apply_location_filters  # noqa E402
 from app.db.models import Location  # noqa E402
-from app.routes.locations import (  # noqa E402
+from app.routes.query_params import (  # noqa E402
     _parse_activity_ids,
     _parse_location_id,
     _split_query_values,
+)
+from app.routes.locations import (  # noqa E402
     read_favorite_locations,
     read_locations,
     router,
@@ -278,13 +280,13 @@ def test_read_favorite_locations_passes_route_filters_to_service():
             levels=["Любитель"],
             limit=20,
             offset=0,
-            is_active=True,
         )
     )
 
     assert service.kwargs["user_id"] == 7
     assert service.kwargs["styles"] == ["ski", "freeride"]
     assert service.kwargs["levels"] == ["Любитель"]
+    assert service.kwargs["is_active"] is True
 
 
 def test_list_locations_without_user_does_not_load_favorites(monkeypatch):
