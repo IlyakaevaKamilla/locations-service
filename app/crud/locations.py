@@ -4,9 +4,21 @@ from collections.abc import Sequence
 
 from sqlalchemy import Select, and_, delete, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+<<<<<<< HEAD
 from app.db.models import FavoriteLocation, Location
 from app.schemas.admin import AdminLocationCreate, AdminLocationRead
+=======
+from app.schemas.admin import AdminLocationCreate, AdminLocationRead
+from app.db.models import (
+    FavoriteLocation,
+    Location,
+    LocationActivity,
+    LocationLevel,
+    LocationStyle,
+)
+>>>>>>> bd195ce (relationships refractoring to m2m)
 
 StrFilter = str | Sequence[str]
 IntFilter = int | Sequence[int]
@@ -50,29 +62,72 @@ def _apply_text_filter(statement: Select, field, value: StrFilter | None):
     return statement.where(func.lower(field).in_(values))
 
 
-def _apply_array_filter(
+def _apply_activity_filter(
     statement: Select,
+<<<<<<< HEAD
     field,
     value: IntFilter | StrFilter | None,
     *,
     item_type: type[int | str],
+=======
+    value: IntFilter | None,
+>>>>>>> bd195ce (relationships refractoring to m2m)
 ):
-    """Apply PostgreSQL array overlap filter for any selected value."""
-    if item_type is int:
-        values = _normalize_int_values(value)
-        if not values:
-            return statement.where(false())
-        return statement.where(field.overlap(values))
+    """Apply filter via location_activities junction table."""
+    values = _normalize_int_values(value)
+    if not values:
+        return statement.where(false())
+    return statement.where(
+        select(1)
+        .select_from(LocationActivity.__table__)
+        .where(
+            and_(
+                LocationActivity.location_id == Location.id,
+                LocationActivity.activity_id.in_(values),
+            )
+        )
+        .exists()
+    )
 
+
+def _apply_style_filter(
+    statement: Select,
+    value: StrFilter | None,
+):
+    """Apply filter via location_styles junction table."""
     values = _normalize_text_values(value)
     if not values:
         return statement
-
-    array_values = func.unnest(field).table_valued("value").render_derived()
     return statement.where(
         select(1)
-        .select_from(array_values)
-        .where(func.lower(array_values.c.value).in_(values))
+        .select_from(LocationStyle.__table__)
+        .where(
+            and_(
+                LocationStyle.location_id == Location.id,
+                func.lower(LocationStyle.style).in_(values),
+            )
+        )
+        .exists()
+    )
+
+
+def _apply_level_filter(
+    statement: Select,
+    value: StrFilter | None,
+):
+    """Apply filter via location_levels junction table."""
+    values = _normalize_text_values(value)
+    if not values:
+        return statement
+    return statement.where(
+        select(1)
+        .select_from(LocationLevel.__table__)
+        .where(
+            and_(
+                LocationLevel.location_id == Location.id,
+                func.lower(LocationLevel.level).in_(values),
+            )
+        )
         .exists()
     )
 
@@ -109,17 +164,11 @@ def apply_location_filters(
     if country:
         statement = _apply_text_filter(statement, Location.country, country)
     if activity_id is not None:
-        statement = _apply_array_filter(
-            statement, Location.activity_ids, activity_id, item_type=int
-        )
+        statement = _apply_activity_filter(statement, activity_id)
     if styles:
-        statement = _apply_array_filter(
-            statement, Location.styles, styles, item_type=str
-        )
+        statement = _apply_style_filter(statement, styles)
     if levels:
-        statement = _apply_array_filter(
-            statement, Location.levels, levels, item_type=str
-        )
+        statement = _apply_level_filter(statement, levels)
     if is_active is not None:
         statement = statement.where(Location.is_active.is_(is_active))
 
@@ -132,15 +181,33 @@ async def get_location_by_id(
     *,
     only_active: bool = True,
 ) -> Location | None:
-    statement = select(Location).where(Location.id == location_id)
+    statement = (
+        select(Location)
+        .options(
+            selectinload(Location.activities_rel),
+            selectinload(Location.styles_rel),
+            selectinload(Location.levels_rel),
+        )
+        .where(Location.id == location_id)
+    )
     if only_active:
         statement = statement.where(Location.is_active.is_(True))
     result = await session.execute(statement)
     return result.scalar_one_or_none()
 
 
-async def get_location_by_slug(session: AsyncSession, slug: str) -> Location | None:
-    result = await session.execute(select(Location).where(Location.slug == slug))
+async def get_location_by_slug(
+        session: AsyncSession, slug: str
+) -> Location | None:
+    result = await session.execute(
+        select(Location)
+        .options(
+            selectinload(Location.activities_rel),
+            selectinload(Location.styles_rel),
+            selectinload(Location.levels_rel),
+        )
+        .where(Location.slug == slug)
+    )
     return result.scalar_one_or_none()
 
 
@@ -160,7 +227,11 @@ async def list_locations(
 ) -> tuple[Sequence[Location], int]:
     """Return a paginated filtered location list and the total matching count."""
     base_statement = apply_location_filters(
-        select(Location),
+        select(Location).options(
+            selectinload(Location.activities_rel),
+            selectinload(Location.styles_rel),
+            selectinload(Location.levels_rel),
+        ),
         search=search,
         region=region,
         city=city,
@@ -197,6 +268,11 @@ async def list_favorite_locations(
     """Return a paginated filtered list of a user's favorite locations and total count."""
     base_statement = (
         select(Location)
+        .options(
+            selectinload(Location.activities_rel),
+            selectinload(Location.styles_rel),
+            selectinload(Location.levels_rel),
+        )
         .join(FavoriteLocation, FavoriteLocation.location_id == Location.id)
         .where(FavoriteLocation.user_id == user_id)
     )
@@ -283,13 +359,25 @@ async def list_location_filter_options(
         select(Location.country).where(filters).distinct().order_by(Location.country)
     )
     activity_ids_result = await session.execute(
-        select(func.unnest(Location.activity_ids)).where(filters).distinct()
+        select(LocationActivity.activity_id)
+        .join(Location, LocationActivity.location_id == Location.id)
+        .where(filters)
+        .distinct()
+        .order_by(LocationActivity.activity_id)
     )
     styles_result = await session.execute(
-        select(func.unnest(Location.styles)).where(filters).distinct()
+        select(LocationStyle.style)
+        .join(Location, LocationStyle.location_id == Location.id)
+        .where(filters)
+        .distinct()
+        .order_by(LocationStyle.style)
     )
     levels_result = await session.execute(
-        select(func.unnest(Location.levels)).where(filters).distinct()
+        select(LocationLevel.level)
+        .join(Location, LocationLevel.location_id == Location.id)
+        .where(filters)
+        .distinct()
+        .order_by(LocationLevel.level)
     )
 
     return {
@@ -320,11 +408,27 @@ async def admin_create_location(
     session: AsyncSession, locations_in: AdminLocationCreate
 ) -> AdminLocationRead:
     location_data = locations_in.model_dump(exclude_unset=True)
-    new_location = Location(**location_data)
+    activity_ids = location_data.pop("activity_ids", [])
+    styles = location_data.pop("styles", [])
+    levels = location_data.pop("levels", [])
 
+    new_location = Location(**location_data)
+    new_location.activities_rel = [
+        LocationActivity(activity_id=activity_id) for activity_id in activity_ids
+    ]
+    new_location.styles_rel = [
+        LocationStyle(style=style) for style in styles
+    ]
+    new_location.levels_rel = [
+        LocationLevel(level=level) for level in levels
+    ]
     session.add(new_location)
+
     await session.commit()
-    await session.refresh(new_location)
+    await session.refresh(
+        new_location,
+        attribute_names=["activities_rel", "styles_rel", "levels_rel"],
+    )
 
     return new_location
 
