@@ -239,12 +239,43 @@ class LocationService:
                     user_id=user_id,
                     location_ids=[location.id],
                 )
-            read = read.model_copy(update={"is_favorite": location.id in favorite_ids})
+            read = read.model_copy(
+                update={"is_favorite": location.id in favorite_ids})
         return read
+
+    @staticmethod
+    def _missing_values(
+        requested: list, existing: list[str] | list[int]
+    ) -> list:
+        """Return values that are not present among the existing ones."""
+        return [value for value in requested if value not in existing]
+
+    async def _ensure_relations_exist(
+        self, location_in: AdminLocationCreate
+    ) -> None:
+        """Raise 422 if any requested activity, style or level is not yet in the DB."""
+        options = await list_location_filter_options(self.session)
+        missing = {
+            "activity_ids": self._missing_values(
+                location_in.activity_ids, options["activity_ids"]
+            ),
+            "styles": self._missing_values(
+                location_in.styles, options["styles"]
+            ),
+            "levels": self._missing_values(
+                location_in.levels, options["levels"]
+            ),
+        }
+        if any(missing.values()):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=missing
+            )
 
     async def admin_create_location(
         self, location_in: AdminLocationCreate
     ) -> AdminLocationRead:
+        await self._ensure_relations_exist(location_in)
         return await admin_create_location(self.session, location_in)
 
     async def admin_delete_location(self, location_id: int) -> None:

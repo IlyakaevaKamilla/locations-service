@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any, Type, TypeVar
 
 from sqlalchemy import Select, and_, delete, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-<<<<<<< HEAD
-from app.db.models import FavoriteLocation, Location
-from app.schemas.admin import AdminLocationCreate, AdminLocationRead
-=======
 from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 from app.db.models import (
     FavoriteLocation,
@@ -18,7 +15,6 @@ from app.db.models import (
     LocationLevel,
     LocationStyle,
 )
->>>>>>> bd195ce (relationships refractoring to m2m)
 
 StrFilter = str | Sequence[str]
 IntFilter = int | Sequence[int]
@@ -54,6 +50,32 @@ def _normalize_int_values(value: IntFilter | None) -> list[int]:
     return values
 
 
+def _apply_filter_via_junction_table(
+        statement: Select,
+        values: list[str] | list[int],
+        model: Type,
+        model_field: Any,
+        *,
+        is_lower: bool = False,
+        return_flase_on_empty: bool = False,
+):
+    """Apply filter vie junction table with normalized values."""
+    if not values:
+        return statement.where(false()) if return_flase_on_empty else statement
+    filter_field = func.lower(model_field) if is_lower else model_field
+    return statement.where(
+        select(1)
+        .select_from(model.__table__)
+        .where(
+            and_(
+                model.location_id == Location.id,
+                filter_field.in_(values),
+            )
+        )
+        .exists()
+    )
+
+
 def _apply_text_filter(statement: Select, field, value: StrFilter | None):
     """Apply a case-insensitive IN filter for a single text column."""
     values = _normalize_text_values(value)
@@ -64,29 +86,15 @@ def _apply_text_filter(statement: Select, field, value: StrFilter | None):
 
 def _apply_activity_filter(
     statement: Select,
-<<<<<<< HEAD
-    field,
-    value: IntFilter | StrFilter | None,
-    *,
-    item_type: type[int | str],
-=======
     value: IntFilter | None,
->>>>>>> bd195ce (relationships refractoring to m2m)
 ):
     """Apply filter via location_activities junction table."""
-    values = _normalize_int_values(value)
-    if not values:
-        return statement.where(false())
-    return statement.where(
-        select(1)
-        .select_from(LocationActivity.__table__)
-        .where(
-            and_(
-                LocationActivity.location_id == Location.id,
-                LocationActivity.activity_id.in_(values),
-            )
-        )
-        .exists()
+    return _apply_filter_via_junction_table(
+        statement=statement,
+        values=_normalize_int_values(value),
+        model=LocationActivity,
+        model_field=LocationActivity.activity_id,
+        return_flase_on_empty=True
     )
 
 
@@ -95,19 +103,12 @@ def _apply_style_filter(
     value: StrFilter | None,
 ):
     """Apply filter via location_styles junction table."""
-    values = _normalize_text_values(value)
-    if not values:
-        return statement
-    return statement.where(
-        select(1)
-        .select_from(LocationStyle.__table__)
-        .where(
-            and_(
-                LocationStyle.location_id == Location.id,
-                func.lower(LocationStyle.style).in_(values),
-            )
-        )
-        .exists()
+    return _apply_filter_via_junction_table(
+        statement=statement,
+        values=_normalize_text_values(value),
+        model=LocationStyle,
+        model_field=LocationStyle.style,
+        is_lower=True
     )
 
 
@@ -116,19 +117,12 @@ def _apply_level_filter(
     value: StrFilter | None,
 ):
     """Apply filter via location_levels junction table."""
-    values = _normalize_text_values(value)
-    if not values:
-        return statement
-    return statement.where(
-        select(1)
-        .select_from(LocationLevel.__table__)
-        .where(
-            and_(
-                LocationLevel.location_id == Location.id,
-                func.lower(LocationLevel.level).in_(values),
-            )
-        )
-        .exists()
+    return _apply_filter_via_junction_table(
+        statement=statement,
+        values=_normalize_text_values(value),
+        model=LocationLevel,
+        model_field=LocationLevel.level,
+        is_lower=True
     )
 
 
@@ -360,21 +354,18 @@ async def list_location_filter_options(
     )
     activity_ids_result = await session.execute(
         select(LocationActivity.activity_id)
-        .join(Location, LocationActivity.location_id == Location.id)
         .where(filters)
         .distinct()
         .order_by(LocationActivity.activity_id)
     )
     styles_result = await session.execute(
         select(LocationStyle.style)
-        .join(Location, LocationStyle.location_id == Location.id)
         .where(filters)
         .distinct()
         .order_by(LocationStyle.style)
     )
     levels_result = await session.execute(
         select(LocationLevel.level)
-        .join(Location, LocationLevel.location_id == Location.id)
         .where(filters)
         .distinct()
         .order_by(LocationLevel.level)
