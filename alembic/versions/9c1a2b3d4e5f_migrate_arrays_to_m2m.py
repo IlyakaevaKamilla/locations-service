@@ -1,4 +1,4 @@
-"""Migrate location arrays to m2m junction tables.
+"""Migrate location arrays to normalized m2m junction tables.
 
 Revision ID: 9c1a2b3d4e5f
 Revises: 8b7c9d2e4f10
@@ -18,8 +18,24 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Create junction tables, migrate data, drop array columns."""
-    # Create junction tables
+    """Create normalized name tables and junction tables, migrate data, drop array columns."""
+    # Create normalized name tables
+    op.create_table(
+        "style_names",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(length=150), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("name"),
+    )
+    op.create_table(
+        "level_names",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(length=150), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("name"),
+    )
+
+    # Create junction tables referencing the normalized name tables
     op.create_table(
         "location_activities",
         sa.Column("location_id", sa.Integer(), nullable=False),
@@ -30,16 +46,18 @@ def upgrade() -> None:
     op.create_table(
         "location_styles",
         sa.Column("location_id", sa.Integer(), nullable=False),
-        sa.Column("style", sa.String(length=255), nullable=False),
+        sa.Column("id_name", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(["location_id"], ["locations.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("location_id", "style"),
+        sa.ForeignKeyConstraint(["id_name"], ["style_names.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("location_id", "id_name"),
     )
     op.create_table(
         "location_levels",
         sa.Column("location_id", sa.Integer(), nullable=False),
-        sa.Column("level", sa.String(length=255), nullable=False),
+        sa.Column("id_name", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(["location_id"], ["locations.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("location_id", "level"),
+        sa.ForeignKeyConstraint(["id_name"], ["level_names.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("location_id", "id_name"),
     )
 
     # Migrate data from array columns
@@ -53,18 +71,38 @@ def upgrade() -> None:
     )
     op.execute(
         """
-        INSERT INTO location_styles (location_id, style)
-        SELECT id, unnest(styles)
+        INSERT INTO style_names (name)
+        SELECT DISTINCT unnest(styles)
         FROM locations
         WHERE styles IS NOT NULL AND cardinality(styles) > 0
         """
     )
     op.execute(
         """
-        INSERT INTO location_levels (location_id, level)
-        SELECT id, unnest(levels)
+        INSERT INTO location_styles (location_id, id_name)
+        SELECT l.id, sn.id
+        FROM locations l
+        CROSS JOIN LATERAL unnest(l.styles) AS s(style)
+        JOIN style_names sn ON sn.name = s.style
+        WHERE l.styles IS NOT NULL AND cardinality(l.styles) > 0
+        """
+    )
+    op.execute(
+        """
+        INSERT INTO level_names (name)
+        SELECT DISTINCT unnest(levels)
         FROM locations
         WHERE levels IS NOT NULL AND cardinality(levels) > 0
+        """
+    )
+    op.execute(
+        """
+        INSERT INTO location_levels (location_id, id_name)
+        SELECT l.id, ln.id
+        FROM locations l
+        CROSS JOIN LATERAL unnest(l.levels) AS lv(level)
+        JOIN level_names ln ON ln.name = lv.level
+        WHERE l.levels IS NOT NULL AND cardinality(l.levels) > 0
         """
     )
 
@@ -80,7 +118,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Re-add array columns, migrate data back, drop junction tables."""
+    """Re-add array columns, migrate data back, drop junction and name tables."""
     op.add_column(
         "locations",
         sa.Column("activity_ids", sa.ARRAY(sa.Integer()), server_default=sa.text("'{}'::integer[]"), nullable=False),
@@ -108,8 +146,10 @@ def downgrade() -> None:
         """
         UPDATE locations l
         SET styles = COALESCE(
-            (SELECT array_agg(ls.style ORDER BY ls.style)
-             FROM location_styles ls WHERE ls.location_id = l.id),
+            (SELECT array_agg(sn.name ORDER BY sn.name)
+             FROM location_styles ls
+             JOIN style_names sn ON sn.id = ls.id_name
+             WHERE ls.location_id = l.id),
             '{}'::varchar[]
         )
         """
@@ -118,8 +158,10 @@ def downgrade() -> None:
         """
         UPDATE locations l
         SET levels = COALESCE(
-            (SELECT array_agg(ll.level ORDER BY ll.level)
-             FROM location_levels ll WHERE ll.location_id = l.id),
+            (SELECT array_agg(ln.name ORDER BY ln.name)
+             FROM location_levels ll
+             JOIN level_names ln ON ln.id = ll.id_name
+             WHERE ll.location_id = l.id),
             '{}'::varchar[]
         )
         """
@@ -132,3 +174,5 @@ def downgrade() -> None:
     op.drop_table("location_levels")
     op.drop_table("location_styles")
     op.drop_table("location_activities")
+    op.drop_table("level_names")
+    op.drop_table("style_names")

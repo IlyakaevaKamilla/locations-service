@@ -34,6 +34,13 @@ class LocationChildMixin:
         return relationship(back_populates=cls._location_back_populates)
 
 
+class NameChildMixin:
+    """Shared columns for normalized tables with name."""
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(150), unique=True)
+
+
 class LocationActivity(LocationChildMixin, Base):
     __tablename__ = "location_activities"
     _location_back_populates = "activities_rel"
@@ -41,18 +48,36 @@ class LocationActivity(LocationChildMixin, Base):
     activity_id: Mapped[int] = mapped_column(primary_key=True)
 
 
+class StyleName(NameChildMixin, Base):
+    __tablename__ = "style_names"
+
+
 class LocationStyle(LocationChildMixin, Base):
     __tablename__ = "location_styles"
     _location_back_populates = "styles_rel"
 
-    style: Mapped[str] = mapped_column(String(255), primary_key=True)
+    id_name: Mapped[int] = mapped_column(
+        ForeignKey("style_names.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    style_name: Mapped["StyleName"] = relationship()
+
+
+class LevelName(NameChildMixin, Base):
+    __tablename__ = "level_names"
 
 
 class LocationLevel(LocationChildMixin, Base):
     __tablename__ = "location_levels"
     _location_back_populates = "levels_rel"
 
-    level: Mapped[str] = mapped_column(String(255), primary_key=True)
+    id_name: Mapped[int] = mapped_column(
+        ForeignKey("level_names.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    level_name: Mapped["LevelName"] = relationship()
 
 
 class Location(Base):
@@ -107,11 +132,11 @@ class Location(Base):
 
     @property
     def styles(self) -> list[str]:
-        return [style.style for style in self.styles_rel]
+        return [style.style_name.name for style in self.styles_rel]
 
     @property
     def levels(self) -> list[str]:
-        return [level.level for level in self.levels_rel]
+        return [level.level_name.name for level in self.levels_rel]
 
     __table_args__ = (
         Index("ix_locations_country_region_city", "country", "region", "city"),

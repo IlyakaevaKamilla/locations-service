@@ -10,10 +10,12 @@ from sqlalchemy.orm import selectinload
 from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 from app.db.models import (
     FavoriteLocation,
+    LevelName,
     Location,
     LocationActivity,
     LocationLevel,
     LocationStyle,
+    StyleName,
 )
 
 StrFilter = str | Sequence[str]
@@ -51,22 +53,24 @@ def _normalize_int_values(value: IntFilter | None) -> list[int]:
 
 
 def _apply_filter_via_junction_table(
-        statement: Select,
-        values: list[str] | list[int],
-        model: Type,
-        model_field: Any,
-        *,
-        is_lower: bool = False,
-        return_flase_on_empty: bool = False,
+    statement: Select,
+    values: list[str] | list[int],
+    model: Type,
+    model_field: Any,
+    join_model: Any | None = None,
+    join_on: Any | None = None,
+    *,
+    is_lower: bool = False,
 ):
-    """Apply filter vie junction table with normalized values."""
+    """Apply filter via junction table, optionally joined to a name table."""
     if not values:
-        return statement.where(false()) if return_flase_on_empty else statement
+        return statement
     filter_field = func.lower(model_field) if is_lower else model_field
+    query = select(1).select_from(model.__table__)
+    if join_model is not None and join_on is not None:
+        query = query.where(join_on)
     return statement.where(
-        select(1)
-        .select_from(model.__table__)
-        .where(
+        query.where(
             and_(
                 model.location_id == Location.id,
                 filter_field.in_(values),
@@ -94,7 +98,6 @@ def _apply_activity_filter(
         values=_normalize_int_values(value),
         model=LocationActivity,
         model_field=LocationActivity.activity_id,
-        return_flase_on_empty=True
     )
 
 
@@ -102,13 +105,15 @@ def _apply_style_filter(
     statement: Select,
     value: StrFilter | None,
 ):
-    """Apply filter via location_styles junction table."""
+    """Apply filter via location_styles joined to style_names."""
     return _apply_filter_via_junction_table(
         statement=statement,
         values=_normalize_text_values(value),
         model=LocationStyle,
-        model_field=LocationStyle.style,
-        is_lower=True
+        model_field=StyleName.name,
+        join_model=StyleName,
+        join_on=StyleName.id == LocationStyle.id_name,
+        is_lower=True,
     )
 
 
@@ -116,13 +121,15 @@ def _apply_level_filter(
     statement: Select,
     value: StrFilter | None,
 ):
-    """Apply filter via location_levels junction table."""
+    """Apply filter via location_levels joined to level_names."""
     return _apply_filter_via_junction_table(
         statement=statement,
         values=_normalize_text_values(value),
         model=LocationLevel,
-        model_field=LocationLevel.level,
-        is_lower=True
+        model_field=LevelName.name,
+        join_model=LevelName,
+        join_on=LevelName.id == LocationLevel.id_name,
+        is_lower=True,
     )
 
 
@@ -157,7 +164,7 @@ def apply_location_filters(
         statement = _apply_text_filter(statement, Location.city, city)
     if country:
         statement = _apply_text_filter(statement, Location.country, country)
-    if activity_id is not None:
+    if activity_id:
         statement = _apply_activity_filter(statement, activity_id)
     if styles:
         statement = _apply_style_filter(statement, styles)
@@ -356,19 +363,18 @@ async def list_location_filter_options(
         select(LocationActivity.activity_id)
         .where(filters)
         .distinct()
-        .order_by(LocationActivity.activity_id)
     )
     styles_result = await session.execute(
-        select(LocationStyle.style)
-        .where(filters)
+        select(StyleName.name)
+        .join(LocationStyle, LocationStyle.id_name == StyleName.id)
+        .join(Location, Location.id == LocationStyle.location_id)
         .distinct()
-        .order_by(LocationStyle.style)
     )
     levels_result = await session.execute(
-        select(LocationLevel.level)
-        .where(filters)
+        select(LevelName.name)
+        .join(LocationLevel, LocationLevel.id_name == LevelName.id)
+        .join(Location, Location.id == LocationLevel.location_id)
         .distinct()
-        .order_by(LocationLevel.level)
     )
 
     return {
@@ -407,11 +413,19 @@ async def admin_create_location(
     new_location.activities_rel = [
         LocationActivity(activity_id=activity_id) for activity_id in activity_ids
     ]
+    style_names = await session.execute(
+        select(StyleName).where(StyleName.name.in_(styles))
+    )
+    style_names = style_names.scalars().all()
     new_location.styles_rel = [
-        LocationStyle(style=style) for style in styles
+        LocationStyle(id_name=style_name.id) for style_name in style_names
     ]
+    level_names = await session.execute(
+        select(LevelName).where(LevelName.name.in_(levels))
+    )
+    level_names = level_names.scalars().all()
     new_location.levels_rel = [
-        LocationLevel(level=level) for level in levels
+        LocationLevel(id_name=level_name.id) for level_name in level_names
     ]
     session.add(new_location)
 
