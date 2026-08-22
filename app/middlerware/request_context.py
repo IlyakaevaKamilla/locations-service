@@ -22,7 +22,7 @@ async def user_context_middleware(request: Request, call_next):
                 raw = _urlsafe_b64decode_padded(claims_header)
                 user = json.loads(raw.decode("utf-8"))
                 if not isinstance(user, dict):
-                    raise ValueError("X-User-Claims must be a JSON object")
+                    raise TypeError("X-User-Claims must be a JSON object")
                 request.state.user = user
             except Exception:
                 logger.warning("Invalid X-User-Claims header", exc_info=True)

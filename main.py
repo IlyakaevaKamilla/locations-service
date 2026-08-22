@@ -4,8 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.middlerware.request_context import user_context_middleware
-from app.routes.locations import router as locations_router
 from app.routes.admin import router as admin_router
+from app.routes.locations import router as locations_router
 from app.utils.logging import LOGGING_CONFIG
 from config import settings
 
@@ -32,7 +32,7 @@ def create_app() -> FastAPI:
 
     app.middleware("http")(user_context_middleware)
 
-    @app.get("/api/locations/health")
+    @app.get("/locations/health")
     async def health_check():
         return {"status": "ok"}
 

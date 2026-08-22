@@ -100,7 +100,11 @@ async def read_location(
     return await service.get_location(location_id, user_id=user_id)
 
 
-@router.post("/{location_id}/favorite", response_model=FavoriteStateResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{location_id}/favorite",
+    response_model=FavoriteStateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_favorite_location(
     location_id: LocationIdPath,
     user_id: CurrentUserId,

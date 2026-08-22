@@ -1,20 +1,18 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TypeVar
 
 from sqlalchemy import Select, and_, delete, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 from app.db.models import FavoriteLocation, Location
+from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 
-T = TypeVar("T", int, str)
 StrFilter = str | Sequence[str]
 IntFilter = int | Sequence[int]
 
 
-def _as_sequence(value: T | Sequence[T] | None) -> list[T]:
+def _as_sequence[T](value: T | Sequence[T] | None) -> list[T]:
     """Convert a scalar or sequence filter value to a list."""
     if value is None:
         return []
@@ -57,7 +55,7 @@ def _apply_array_filter(
     field,
     value: IntFilter | StrFilter | None,
     *,
-    item_type: type[int] | type[str],
+    item_type: type[int | str],
 ):
     """Apply PostgreSQL array overlap filter for any selected value."""
     if item_type is int:
