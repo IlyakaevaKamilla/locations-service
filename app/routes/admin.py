@@ -72,4 +72,3 @@ async def create_location(
 @router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_location_by_id(service: LocationServiceDep, location_id: int):
     await service.admin_delete_location(location_id)
-    return None

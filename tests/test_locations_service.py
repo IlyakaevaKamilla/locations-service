@@ -1,32 +1,31 @@
-from types import SimpleNamespace
-from pathlib import Path
-import sys
 import asyncio
+import sys
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.crud.locations import apply_location_filters  # noqa E402
-from app.db.models import Location  # noqa E402
-from app.routes.query_params import (  # noqa E402
+from app.db.models import Location
+from app.routes.query_params import (
     _parse_activity_ids,
     _parse_location_id,
     _split_query_values,
 )
-from app.routes.locations import (  # noqa E402
+from app.routes.locations import (
     read_favorite_locations,
     read_locations,
     router,
 )
-from app.services.locations import LocationService # noqa E402
+from app.services.locations import LocationService
 
 
 class FakeSession:
@@ -81,7 +80,9 @@ def test_get_location_marks_favorite(monkeypatch, user_id, expected_favorite):
         assert location_ids == [1]
         return {1}
 
-    monkeypatch.setattr("app.services.locations.get_location_by_id", fake_get_location_by_id)
+    monkeypatch.setattr(
+        "app.services.locations.get_location_by_id", fake_get_location_by_id
+    )
     monkeypatch.setattr(
         "app.services.locations.list_favorite_location_ids",
         fake_list_favorite_location_ids,
@@ -99,9 +100,10 @@ def test_get_location_raises_not_found(monkeypatch):
 
     async def fake_get_location_by_id(db, location_id, *, only_active=True):
         assert only_active is True
-        return None
 
-    monkeypatch.setattr("app.services.locations.get_location_by_id", fake_get_location_by_id)
+    monkeypatch.setattr(
+        "app.services.locations.get_location_by_id", fake_get_location_by_id
+    )
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(service.get_location(1))
@@ -120,7 +122,9 @@ def test_get_location_for_admin_includes_inactive_locations(monkeypatch):
         assert only_active is False
         return make_location(id=location_id, is_active=False)
 
-    monkeypatch.setattr("app.services.locations.get_location_by_id", fake_get_location_by_id)
+    monkeypatch.setattr(
+        "app.services.locations.get_location_by_id", fake_get_location_by_id
+    )
 
     result = asyncio.run(service.get_location_for_admin(1))
 
@@ -321,7 +325,9 @@ def test_list_favorites_uses_favorite_query(monkeypatch):
         assert kwargs["user_id"] == 7
         return [location], 1
 
-    monkeypatch.setattr("app.services.locations.list_favorite_locations", fake_list_favorite_locations)
+    monkeypatch.setattr(
+        "app.services.locations.list_favorite_locations", fake_list_favorite_locations
+    )
 
     result = asyncio.run(service.list_favorites(user_id=7))
 
@@ -343,7 +349,9 @@ def test_add_favorite_commits(monkeypatch):
         assert location_id == 1
         return SimpleNamespace(id=1)
 
-    monkeypatch.setattr("app.services.locations.get_location_by_id", fake_get_location_by_id)
+    monkeypatch.setattr(
+        "app.services.locations.get_location_by_id", fake_get_location_by_id
+    )
     monkeypatch.setattr(
         "app.services.locations.add_favorite_location",
         fake_add_favorite_location,
@@ -368,7 +376,9 @@ def test_add_favorite_rejects_inactive_location(monkeypatch):
     async def fake_add_favorite_location(db, *, user_id, location_id):
         raise AssertionError("should not add inactive location to favorites")
 
-    monkeypatch.setattr("app.services.locations.get_location_by_id", fake_get_location_by_id)
+    monkeypatch.setattr(
+        "app.services.locations.get_location_by_id", fake_get_location_by_id
+    )
     monkeypatch.setattr(
         "app.services.locations.add_favorite_location",
         fake_add_favorite_location,
@@ -394,7 +404,9 @@ def test_add_favorite_rolls_back_on_integrity_error(monkeypatch):
     async def fake_add_favorite_location(db, *, user_id, location_id):
         raise IntegrityError("stmt", {}, Exception("duplicate"))
 
-    monkeypatch.setattr("app.services.locations.get_location_by_id", fake_get_location_by_id)
+    monkeypatch.setattr(
+        "app.services.locations.get_location_by_id", fake_get_location_by_id
+    )
     monkeypatch.setattr(
         "app.services.locations.add_favorite_location",
         fake_add_favorite_location,
@@ -453,7 +465,11 @@ def test_list_filter_options(monkeypatch):
 
 
 def test_split_query_values_supports_repeated_and_csv_values():
-    assert _split_query_values(["ski, freeride", "mountain"]) == ["ski", "freeride", "mountain"]
+    assert _split_query_values(["ski, freeride", "mountain"]) == [
+        "ski",
+        "freeride",
+        "mountain",
+    ]
     assert _split_query_values(["  "]) is None
 
 
@@ -493,7 +509,11 @@ def test_locations_openapi_keeps_activity_id_as_integer_array():
     app.include_router(router)
 
     parameters = app.openapi()["paths"]["/api/locations"]["get"]["parameters"]
-    activity_id_schema = next(parameter["schema"] for parameter in parameters if parameter["name"] == "activity_id")
+    activity_id_schema = next(
+        parameter["schema"]
+        for parameter in parameters
+        if parameter["name"] == "activity_id"
+    )
 
     assert activity_id_schema["anyOf"][0]["type"] == "array"
     assert activity_id_schema["anyOf"][0]["items"]["type"] == "integer"

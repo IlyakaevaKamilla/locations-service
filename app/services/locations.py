@@ -5,9 +5,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.locations import (
+    add_favorite_location,
     admin_create_location,
     admin_delete_location_by_id,
-    add_favorite_location,
     get_location_by_id,
     list_favorite_location_ids,
     list_favorite_locations,

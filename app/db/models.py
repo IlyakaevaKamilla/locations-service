@@ -2,7 +2,19 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,14 +61,18 @@ class Location(Base):
         nullable=False,
         server_default=text("true"),
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
     )
 
-    favorites: Mapped[list["FavoriteLocation"]] = relationship(back_populates="location", cascade="all, delete-orphan")
+    favorites: Mapped[list[FavoriteLocation]] = relationship(
+        back_populates="location", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_locations_country_region_city", "country", "region", "city"),
@@ -79,8 +95,14 @@ class FavoriteLocation(Base):
         nullable=False,
         index=True,
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     location: Mapped[Location] = relationship(back_populates="favorites")
 
-    __table_args__ = (UniqueConstraint("user_id", "location_id", name="uq_favorite_locations_user_location"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "location_id", name="uq_favorite_locations_user_location"
+        ),
+    )
