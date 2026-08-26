@@ -19,11 +19,11 @@ from app.crud.locations import (  # noqa E402
     list_location_filter_options,
 )
 from app.db.models import (  # noqa E402
-    LevelName,
+    Level,
     Location,
     LocationLevel,
     LocationStyle,
-    StyleName,
+    Style,
 )
 from app.routes.query_params import (  # noqa E402
     _parse_activity_ids,
@@ -553,16 +553,16 @@ def test_apply_location_filters_uses_case_insensitive_filters_and_exists():
     assert "lower(locations.region) IN" in compiled
     assert "location_activities" in compiled
     assert "location_styles" in compiled
-    assert "style_names" in compiled
-    assert "lower(style_names.name) IN" in compiled
+    assert "styles" in compiled
+    assert "lower(styles.name) IN" in compiled
     assert "location_levels" in compiled
-    assert "level_names" in compiled
-    assert "lower(level_names.name) IN" in compiled
+    assert "levels" in compiled
+    assert "lower(levels.name) IN" in compiled
     assert "locations.is_active IS true" in compiled
     assert " AND " in compiled
 
 
-def test_apply_style_filter_joins_style_names():
+def test_apply_style_filter_joins_styles():
     statement = apply_location_filters(
         select(Location),
         styles=["mountain", "freeride"],
@@ -571,12 +571,12 @@ def test_apply_style_filter_joins_style_names():
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "location_styles" in compiled
-    assert "style_names" in compiled
-    assert "style_names.id = location_styles.id_name" in compiled
-    assert "lower(style_names.name) IN" in compiled
+    assert "styles" in compiled
+    assert "styles.id = location_styles.id_name" in compiled
+    assert "lower(styles.name) IN" in compiled
 
 
-def test_apply_level_filter_joins_level_names():
+def test_apply_level_filter_joins_levels():
     statement = apply_location_filters(
         select(Location),
         levels=["Любитель"],
@@ -585,9 +585,9 @@ def test_apply_level_filter_joins_level_names():
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "location_levels" in compiled
-    assert "level_names" in compiled
-    assert "level_names.id = location_levels.id_name" in compiled
-    assert "lower(level_names.name) IN" in compiled
+    assert "levels" in compiled
+    assert "levels.id = location_levels.id_name" in compiled
+    assert "lower(levels.name) IN" in compiled
 
 
 def test_apply_location_filters_empty_activity_ids_match_no_locations():
@@ -604,7 +604,7 @@ def test_apply_location_filters_empty_styles_match_no_locations():
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "location_styles" not in compiled
-    assert "style_names" not in compiled
+    assert "styles" not in compiled
 
 
 def test_apply_location_filters_empty_levels_match_no_locations():
@@ -613,7 +613,7 @@ def test_apply_location_filters_empty_levels_match_no_locations():
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "location_levels" not in compiled
-    assert "level_names" not in compiled
+    assert "levels" not in compiled
 
 
 def test_apply_location_filters_empty_lists_keep_other_filters():
@@ -638,9 +638,9 @@ def test_list_location_filter_options_joins_name_tables(monkeypatch):
 
     async def fake_execute(statement):
         compiled = str(statement.compile(dialect=postgresql.dialect()))
-        if "style_names" in compiled:
+        if "styles" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["mountain", "freeride"]))
-        if "level_names" in compiled:
+        if "levels" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["beginner"]))
         if "location_activities" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [12]))
@@ -661,7 +661,7 @@ def test_list_location_filter_options_joins_name_tables(monkeypatch):
     assert result["activity_ids"] == [12]
 
 
-def test_admin_create_location_links_style_and_level_names(monkeypatch):
+def test_admin_create_location_links_styles_and_levels(monkeypatch):
     session = FakeSession()
     location_in = SimpleNamespace(
         model_dump=lambda exclude_unset: {
@@ -673,15 +673,15 @@ def test_admin_create_location_links_style_and_level_names(monkeypatch):
         }
     )
 
-    style_name = SimpleNamespace(id=1)
-    level_name = SimpleNamespace(id=2)
+    style = SimpleNamespace(id=1)
+    level = SimpleNamespace(id=2)
 
     async def fake_execute(statement):
         compiled = str(statement.compile(dialect=postgresql.dialect()))
-        if "style_names" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [style_name]))
-        if "level_names" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [level_name]))
+        if "styles" in compiled:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [style]))
+        if "levels" in compiled:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [level]))
         raise AssertionError(f"unexpected statement: {compiled}")
 
     monkeypatch.setattr(session, "execute", fake_execute)
@@ -714,9 +714,9 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
 
     async def fake_execute(statement):
         compiled = str(statement.compile(dialect=postgresql.dialect()))
-        if "style_names" in compiled:
+        if "styles" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
-        if "level_names" in compiled:
+        if "levels" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
         raise AssertionError(f"unexpected statement: {compiled}")
 

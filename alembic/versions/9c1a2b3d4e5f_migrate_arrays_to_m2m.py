@@ -21,14 +21,14 @@ def upgrade() -> None:
     """Create normalized name tables and junction tables, migrate data, drop array columns."""
     # Create normalized name tables
     op.create_table(
-        "style_names",
+        "styles",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=150), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name"),
     )
     op.create_table(
-        "level_names",
+        "levels",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=150), nullable=False),
         sa.PrimaryKeyConstraint("id"),
@@ -48,7 +48,7 @@ def upgrade() -> None:
         sa.Column("location_id", sa.Integer(), nullable=False),
         sa.Column("id_name", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(["location_id"], ["locations.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["id_name"], ["style_names.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["id_name"], ["styles.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("location_id", "id_name"),
     )
     op.create_table(
@@ -56,7 +56,7 @@ def upgrade() -> None:
         sa.Column("location_id", sa.Integer(), nullable=False),
         sa.Column("id_name", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(["location_id"], ["locations.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["id_name"], ["level_names.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["id_name"], ["levels.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("location_id", "id_name"),
     )
 
@@ -71,7 +71,7 @@ def upgrade() -> None:
     )
     op.execute(
         """
-        INSERT INTO style_names (name)
+        INSERT INTO styles (name)
         SELECT DISTINCT unnest(styles)
         FROM locations
         WHERE styles IS NOT NULL AND cardinality(styles) > 0
@@ -83,13 +83,13 @@ def upgrade() -> None:
         SELECT l.id, sn.id
         FROM locations l
         CROSS JOIN LATERAL unnest(l.styles) AS s(style)
-        JOIN style_names sn ON sn.name = s.style
+        JOIN styles sn ON sn.name = s.style
         WHERE l.styles IS NOT NULL AND cardinality(l.styles) > 0
         """
     )
     op.execute(
         """
-        INSERT INTO level_names (name)
+        INSERT INTO levels (name)
         SELECT DISTINCT unnest(levels)
         FROM locations
         WHERE levels IS NOT NULL AND cardinality(levels) > 0
@@ -101,7 +101,7 @@ def upgrade() -> None:
         SELECT l.id, ln.id
         FROM locations l
         CROSS JOIN LATERAL unnest(l.levels) AS lv(level)
-        JOIN level_names ln ON ln.name = lv.level
+        JOIN levels ln ON ln.name = lv.level
         WHERE l.levels IS NOT NULL AND cardinality(l.levels) > 0
         """
     )
@@ -148,7 +148,7 @@ def downgrade() -> None:
         SET styles = COALESCE(
             (SELECT array_agg(sn.name ORDER BY sn.name)
              FROM location_styles ls
-             JOIN style_names sn ON sn.id = ls.id_name
+             JOIN styles sn ON sn.id = ls.id_name
              WHERE ls.location_id = l.id),
             '{}'::varchar[]
         )
@@ -160,7 +160,7 @@ def downgrade() -> None:
         SET levels = COALESCE(
             (SELECT array_agg(ln.name ORDER BY ln.name)
              FROM location_levels ll
-             JOIN level_names ln ON ln.id = ll.id_name
+             JOIN levels ln ON ln.id = ll.id_name
              WHERE ll.location_id = l.id),
             '{}'::varchar[]
         )
@@ -174,5 +174,5 @@ def downgrade() -> None:
     op.drop_table("location_levels")
     op.drop_table("location_styles")
     op.drop_table("location_activities")
-    op.drop_table("level_names")
-    op.drop_table("style_names")
+    op.drop_table("levels")
+    op.drop_table("styles")

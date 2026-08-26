@@ -10,12 +10,12 @@ from sqlalchemy.orm import selectinload
 from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 from app.db.models import (
     FavoriteLocation,
-    LevelName,
+    Level,
     Location,
     LocationActivity,
     LocationLevel,
     LocationStyle,
-    StyleName,
+    Style,
 )
 
 StrFilter = str | Sequence[str]
@@ -105,14 +105,14 @@ def _apply_style_filter(
     statement: Select,
     value: StrFilter | None,
 ):
-    """Apply filter via location_styles joined to style_names."""
+    """Apply filter via location_styles joined to styles."""
     return _apply_filter_via_junction_table(
         statement=statement,
         values=_normalize_text_values(value),
         model=LocationStyle,
-        model_field=StyleName.name,
-        join_model=StyleName,
-        join_on=StyleName.id == LocationStyle.id_name,
+        model_field=Style.name,
+        join_model=Style,
+        join_on=Style.id == LocationStyle.id_name,
         is_lower=True,
     )
 
@@ -121,14 +121,14 @@ def _apply_level_filter(
     statement: Select,
     value: StrFilter | None,
 ):
-    """Apply filter via location_levels joined to level_names."""
+    """Apply filter via location_levels joined to levels."""
     return _apply_filter_via_junction_table(
         statement=statement,
         values=_normalize_text_values(value),
         model=LocationLevel,
-        model_field=LevelName.name,
-        join_model=LevelName,
-        join_on=LevelName.id == LocationLevel.id_name,
+        model_field=Level.name,
+        join_model=Level,
+        join_on=Level.id == LocationLevel.id_name,
         is_lower=True,
     )
 
@@ -361,19 +361,16 @@ async def list_location_filter_options(
     )
     activity_ids_result = await session.execute(
         select(LocationActivity.activity_id)
-        .where(filters)
         .distinct()
     )
     styles_result = await session.execute(
-        select(StyleName.name)
-        .join(LocationStyle, LocationStyle.id_name == StyleName.id)
-        .join(Location, Location.id == LocationStyle.location_id)
+        select(Style.name)
+        .join(LocationStyle, LocationStyle.id_name == Style.id)
         .distinct()
     )
     levels_result = await session.execute(
-        select(LevelName.name)
-        .join(LocationLevel, LocationLevel.id_name == LevelName.id)
-        .join(Location, Location.id == LocationLevel.location_id)
+        select(Level.name)
+        .join(LocationLevel, LocationLevel.id_name == Level.id)
         .distinct()
     )
 
@@ -413,19 +410,19 @@ async def admin_create_location(
     new_location.activities_rel = [
         LocationActivity(activity_id=activity_id) for activity_id in activity_ids
     ]
-    style_names = await session.execute(
-        select(StyleName).where(StyleName.name.in_(styles))
+    style_rows = await session.execute(
+        select(Style).where(Style.name.in_(styles))
     )
-    style_names = style_names.scalars().all()
+    style_rows = style_rows.scalars().all()
     new_location.styles_rel = [
-        LocationStyle(id_name=style_name.id) for style_name in style_names
+        LocationStyle(id_name=style.id) for style in style_rows
     ]
-    level_names = await session.execute(
-        select(LevelName).where(LevelName.name.in_(levels))
+    level_rows = await session.execute(
+        select(Level).where(Level.name.in_(levels))
     )
-    level_names = level_names.scalars().all()
+    level_rows = level_rows.scalars().all()
     new_location.levels_rel = [
-        LocationLevel(id_name=level_name.id) for level_name in level_names
+        LocationLevel(id_name=level.id) for level in level_rows
     ]
     session.add(new_location)
 

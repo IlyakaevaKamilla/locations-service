@@ -34,7 +34,7 @@ class LocationChildMixin:
         return relationship(back_populates=cls._location_back_populates)
 
 
-class NameChildMixin:
+class ReferenceMixin:
     """Shared columns for normalized tables with name."""
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -48,8 +48,12 @@ class LocationActivity(LocationChildMixin, Base):
     activity_id: Mapped[int] = mapped_column(primary_key=True)
 
 
-class StyleName(NameChildMixin, Base):
-    __tablename__ = "style_names"
+class Style(ReferenceMixin, Base):
+    __tablename__ = "styles"
+
+    location_styles: Mapped[list["LocationStyle"]] = relationship(
+        back_populates="style"
+    )
 
 
 class LocationStyle(LocationChildMixin, Base):
@@ -57,15 +61,21 @@ class LocationStyle(LocationChildMixin, Base):
     _location_back_populates = "styles_rel"
 
     id_name: Mapped[int] = mapped_column(
-        ForeignKey("style_names.id", ondelete="CASCADE"),
+        ForeignKey("styles.id", ondelete="CASCADE"),
         primary_key=True,
     )
 
-    style_name: Mapped["StyleName"] = relationship()
+    style: Mapped["Style"] = relationship(
+        back_populates="location_styles"
+    )
 
 
-class LevelName(NameChildMixin, Base):
-    __tablename__ = "level_names"
+class Level(ReferenceMixin, Base):
+    __tablename__ = "levels"
+
+    location_levels: Mapped[list["LocationLevel"]] = relationship(
+        back_populates="level"
+    )
 
 
 class LocationLevel(LocationChildMixin, Base):
@@ -73,11 +83,13 @@ class LocationLevel(LocationChildMixin, Base):
     _location_back_populates = "levels_rel"
 
     id_name: Mapped[int] = mapped_column(
-        ForeignKey("level_names.id", ondelete="CASCADE"),
+        ForeignKey("levels.id", ondelete="CASCADE"),
         primary_key=True,
     )
 
-    level_name: Mapped["LevelName"] = relationship()
+    level: Mapped["Level"] = relationship(
+        back_populates="location_levels"
+    )
 
 
 class Location(Base):
@@ -132,11 +144,11 @@ class Location(Base):
 
     @property
     def styles(self) -> list[str]:
-        return [style.style_name.name for style in self.styles_rel]
+        return [style.style.name for style in self.styles_rel]
 
     @property
     def levels(self) -> list[str]:
-        return [level.level_name.name for level in self.levels_rel]
+        return [level.level.name for level in self.levels_rel]
 
     __table_args__ = (
         Index("ix_locations_country_region_city", "country", "region", "city"),
