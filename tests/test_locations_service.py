@@ -18,13 +18,7 @@ from app.crud.locations import (  # noqa E402
     apply_location_filters,
     list_location_filter_options,
 )
-from app.db.models import (  # noqa E402
-    Level,
-    Location,
-    LocationLevel,
-    LocationStyle,
-    Style,
-)
+from app.db.models import Location # noqa E402
 from app.routes.query_params import (  # noqa E402
     _parse_activity_ids,
     _parse_location_id,
