@@ -18,7 +18,7 @@ target_metadata = Base.metadata
 # Alembic не умеет работать с синхронными движками
 config.set_main_option(
     "sqlalchemy.url",
-    f"postgresql+psycopg2://{se.db_user}:{se.db_pass}@{se.db_host}:{se.db_port}/{se.db_name}",
+    f"postgresql+psycopg2://{se.db_user}:{se.db_pass}@localhost:5432/{se.db_name}",
 )
 
 

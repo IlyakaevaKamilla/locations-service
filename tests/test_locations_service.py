@@ -13,7 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.crud.locations import apply_location_filters  # noqa E402
+from app.crud.locations import (  # noqa E402
+    admin_create_location,
+    apply_location_filters,
+    list_location_filter_options,
+)
 from app.db.models import Location
 from app.routes.query_params import (
     _parse_activity_ids,
@@ -38,6 +42,15 @@ class FakeSession:
 
     async def rollback(self):
         self.rollbacks += 1
+
+    async def execute(self, statement):
+        raise AssertionError("FakeSession.execute should be monkeypatched")
+
+    def add(self, obj):
+        raise AssertionError("FakeSession.add should be monkeypatched")
+
+    async def refresh(self, obj, attribute_names=None):
+        raise AssertionError("FakeSession.refresh should be monkeypatched")
 
 
 def make_location(**overrides):
@@ -519,11 +532,12 @@ def test_locations_openapi_keeps_activity_id_as_integer_array():
     assert activity_id_schema["anyOf"][0]["items"]["type"] == "integer"
 
 
-def test_apply_location_filters_uses_case_insensitive_filters_and_array_overlap_for_ids():
+def test_apply_location_filters_uses_case_insensitive_filters_and_exists():
     statement = apply_location_filters(
         select(Location),
         region=["Краснодарский край", "Карачаево-Черкесия"],
         activity_id=[1, 2],
+        styles=["mountain"],
         levels=["Любитель"],
         is_active=True,
     )
@@ -531,12 +545,43 @@ def test_apply_location_filters_uses_case_insensitive_filters_and_array_overlap_
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "lower(locations.region) IN" in compiled
-    assert "locations.activity_ids &&" in compiled
-    assert "unnest(locations.levels)" in compiled
-    assert "(value)" in compiled
-    assert "lower(" in compiled
+    assert "location_activities" in compiled
+    assert "location_styles" in compiled
+    assert "styles" in compiled
+    assert "lower(styles.name) IN" in compiled
+    assert "location_levels" in compiled
+    assert "levels" in compiled
+    assert "lower(levels.name) IN" in compiled
     assert "locations.is_active IS true" in compiled
     assert " AND " in compiled
+
+
+def test_apply_style_filter_joins_styles():
+    statement = apply_location_filters(
+        select(Location),
+        styles=["mountain", "freeride"],
+    )
+
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "location_styles" in compiled
+    assert "styles" in compiled
+    assert "styles.id = location_styles.style_id" in compiled
+    assert "lower(styles.name) IN" in compiled
+
+
+def test_apply_level_filter_joins_levels():
+    statement = apply_location_filters(
+        select(Location),
+        levels=["Любитель"],
+    )
+
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "location_levels" in compiled
+    assert "levels" in compiled
+    assert "levels.id = location_levels.level_id" in compiled
+    assert "lower(levels.name) IN" in compiled
 
 
 def test_apply_location_filters_empty_activity_ids_match_no_locations():
@@ -544,5 +589,155 @@ def test_apply_location_filters_empty_activity_ids_match_no_locations():
 
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
-    assert "false" in compiled
-    assert "locations.activity_ids &&" not in compiled
+    assert "location_activities" not in compiled
+
+
+def test_apply_location_filters_empty_styles_match_no_locations():
+    statement = apply_location_filters(select(Location), styles=[], is_active=True)
+
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "location_styles" not in compiled
+    assert "styles" not in compiled
+
+
+def test_apply_location_filters_empty_levels_match_no_locations():
+    statement = apply_location_filters(select(Location), levels=[], is_active=True)
+
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "location_levels" not in compiled
+    assert "levels" not in compiled
+
+
+def test_apply_location_filters_empty_lists_keep_other_filters():
+    statement = apply_location_filters(
+        select(Location),
+        activity_id=[],
+        styles=[],
+        levels=[],
+        is_active=False,
+    )
+
+    compiled = str(statement.compile(dialect=postgresql.dialect()))
+
+    assert "location_activities" not in compiled
+    assert "location_styles" not in compiled
+    assert "location_levels" not in compiled
+    assert "locations.is_active IS false" in compiled
+
+
+def test_list_location_filter_options_joins_name_tables(monkeypatch):
+    session = FakeSession()
+
+    async def fake_execute(statement):
+        compiled = str(statement.compile(dialect=postgresql.dialect()))
+        if "styles" in compiled:
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["mountain", "freeride"])
+            )
+        if "levels" in compiled:
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["beginner"])
+            )
+        if "location_activities" in compiled:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [12]))
+        if "locations.region" in compiled:
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["Краснодарский край"])
+            )
+        if "locations.city" in compiled:
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["Сочи"])
+            )
+        if "locations.country" in compiled:
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["Russia"])
+            )
+        raise AssertionError(f"unexpected statement: {compiled}")
+
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    result = asyncio.run(list_location_filter_options(session))
+
+    assert result["styles"] == ["mountain", "freeride"]
+    assert result["levels"] == ["beginner"]
+    assert result["activity_ids"] == [12]
+
+
+def test_admin_create_location_links_styles_and_levels(monkeypatch):
+    session = FakeSession()
+    location_in = SimpleNamespace(
+        model_dump=lambda exclude_unset: {
+            "name": "Роза Хутор",
+            "region": "Краснодарский край",
+            "activity_ids": [12],
+            "styles": ["mountain"],
+            "levels": ["beginner"],
+        }
+    )
+
+    style = SimpleNamespace(id=1)
+    level = SimpleNamespace(id=2)
+
+    async def fake_execute(statement):
+        compiled = str(statement.compile(dialect=postgresql.dialect()))
+        if "styles" in compiled:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [style]))
+        if "levels" in compiled:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [level]))
+        raise AssertionError(f"unexpected statement: {compiled}")
+
+    monkeypatch.setattr(session, "execute", fake_execute)
+    monkeypatch.setattr(session, "add", lambda obj: None)
+    monkeypatch.setattr(session, "commit", session.commit)
+
+    async def fake_refresh(obj, attribute_names=None):
+        return None
+
+    monkeypatch.setattr(session, "refresh", fake_refresh)
+
+    result = asyncio.run(admin_create_location(session, location_in))
+
+    assert isinstance(result, Location)
+    assert result.styles_rel[0].style_id == 1
+    assert result.levels_rel[0].level_id == 2
+    assert session.commits == 1
+
+
+def test_admin_create_location_with_empty_lists(monkeypatch):
+    session = FakeSession()
+    location_in = SimpleNamespace(
+        model_dump=lambda exclude_unset: {
+            "name": "Роза Хутор",
+            "region": "Краснодарский край",
+            "activity_ids": [],
+            "styles": [],
+            "levels": [],
+        }
+    )
+
+    async def fake_execute(statement):
+        compiled = str(statement.compile(dialect=postgresql.dialect()))
+        if "styles" in compiled:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
+        if "levels" in compiled:
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
+        raise AssertionError(f"unexpected statement: {compiled}")
+
+    monkeypatch.setattr(session, "execute", fake_execute)
+    monkeypatch.setattr(session, "add", lambda obj: None)
+    monkeypatch.setattr(session, "commit", session.commit)
+
+    async def fake_refresh(obj, attribute_names=None):
+        return None
+
+    monkeypatch.setattr(session, "refresh", fake_refresh)
+
+    result = asyncio.run(admin_create_location(session, location_in))
+
+    assert isinstance(result, Location)
+    assert result.activities_rel == []
+    assert result.styles_rel == []
+    assert result.levels_rel == []
+    assert session.commits == 1
