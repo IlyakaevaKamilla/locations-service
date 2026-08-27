@@ -24,12 +24,12 @@ from app.routes.query_params import (  # noqa E402
     _parse_location_id,
     _split_query_values,
 )
-from app.routes.locations import (
+from app.routes.locations import ( # noqa E402
     read_favorite_locations,
     read_locations,
     router,
 )
-from app.services.locations import LocationService
+from app.services.locations import LocationService # noqa E402
 
 
 class FakeSession:
