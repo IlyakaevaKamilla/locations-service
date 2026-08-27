@@ -60,7 +60,7 @@ class LocationStyle(LocationChildMixin, Base):
     __tablename__ = "location_styles"
     _location_back_populates = "styles_rel"
 
-    id_name: Mapped[int] = mapped_column(
+    style_id: Mapped[int] = mapped_column(
         ForeignKey("styles.id", ondelete="CASCADE"),
         primary_key=True,
     )
@@ -82,7 +82,7 @@ class LocationLevel(LocationChildMixin, Base):
     __tablename__ = "location_levels"
     _location_back_populates = "levels_rel"
 
-    id_name: Mapped[int] = mapped_column(
+    level_id: Mapped[int] = mapped_column(
         ForeignKey("levels.id", ondelete="CASCADE"),
         primary_key=True,
     )

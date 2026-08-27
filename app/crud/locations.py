@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Type, TypeVar
+from typing import Any, Type
 
 from sqlalchemy import Select, and_, delete, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,7 +112,7 @@ def _apply_style_filter(
         model=LocationStyle,
         model_field=Style.name,
         join_model=Style,
-        join_on=Style.id == LocationStyle.id_name,
+        join_on=Style.id == LocationStyle.style_id,
         is_lower=True,
     )
 
@@ -128,7 +128,7 @@ def _apply_level_filter(
         model=LocationLevel,
         model_field=Level.name,
         join_model=Level,
-        join_on=Level.id == LocationLevel.id_name,
+        join_on=Level.id == LocationLevel.level_id,
         is_lower=True,
     )
 
@@ -365,12 +365,12 @@ async def list_location_filter_options(
     )
     styles_result = await session.execute(
         select(Style.name)
-        .join(LocationStyle, LocationStyle.id_name == Style.id)
+        .join(LocationStyle, LocationStyle.style_id == Style.id)
         .distinct()
     )
     levels_result = await session.execute(
         select(Level.name)
-        .join(LocationLevel, LocationLevel.id_name == Level.id)
+        .join(LocationLevel, LocationLevel.level_id == Level.id)
         .distinct()
     )
 
@@ -415,14 +415,14 @@ async def admin_create_location(
     )
     style_rows = style_rows.scalars().all()
     new_location.styles_rel = [
-        LocationStyle(id_name=style.id) for style in style_rows
+        LocationStyle(style_id=style.id) for style in style_rows
     ]
     level_rows = await session.execute(
         select(Level).where(Level.name.in_(levels))
     )
     level_rows = level_rows.scalars().all()
     new_location.levels_rel = [
-        LocationLevel(id_name=level.id) for level in level_rows
+        LocationLevel(level_id=level.id) for level in level_rows
     ]
     session.add(new_location)
 

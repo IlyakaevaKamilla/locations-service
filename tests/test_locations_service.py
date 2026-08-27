@@ -566,7 +566,7 @@ def test_apply_style_filter_joins_styles():
 
     assert "location_styles" in compiled
     assert "styles" in compiled
-    assert "styles.id = location_styles.id_name" in compiled
+    assert "styles.id = location_styles.style_id" in compiled
     assert "lower(styles.name) IN" in compiled
 
 
@@ -580,7 +580,7 @@ def test_apply_level_filter_joins_levels():
 
     assert "location_levels" in compiled
     assert "levels" in compiled
-    assert "levels.id = location_levels.id_name" in compiled
+    assert "levels.id = location_levels.level_id" in compiled
     assert "lower(levels.name) IN" in compiled
 
 
@@ -689,8 +689,8 @@ def test_admin_create_location_links_styles_and_levels(monkeypatch):
     result = asyncio.run(admin_create_location(session, location_in))
 
     assert isinstance(result, Location)
-    assert result.styles_rel[0].id_name == 1
-    assert result.levels_rel[0].id_name == 2
+    assert result.styles_rel[0].style_id == 1
+    assert result.levels_rel[0].level_id == 2
     assert session.commits == 1
 
 

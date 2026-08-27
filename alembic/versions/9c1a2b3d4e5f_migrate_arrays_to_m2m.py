@@ -46,18 +46,18 @@ def upgrade() -> None:
     op.create_table(
         "location_styles",
         sa.Column("location_id", sa.Integer(), nullable=False),
-        sa.Column("id_name", sa.Integer(), nullable=False),
+        sa.Column("style_id", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(["location_id"], ["locations.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["id_name"], ["styles.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("location_id", "id_name"),
+        sa.ForeignKeyConstraint(["style_id"], ["styles.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("location_id", "style_id"),
     )
     op.create_table(
         "location_levels",
         sa.Column("location_id", sa.Integer(), nullable=False),
-        sa.Column("id_name", sa.Integer(), nullable=False),
+        sa.Column("level_id", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(["location_id"], ["locations.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["id_name"], ["levels.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("location_id", "id_name"),
+        sa.ForeignKeyConstraint(["level_id"], ["levels.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("location_id", "level_id"),
     )
 
     # Migrate data from array columns
@@ -79,7 +79,7 @@ def upgrade() -> None:
     )
     op.execute(
         """
-        INSERT INTO location_styles (location_id, id_name)
+        INSERT INTO location_styles (location_id, style_id)
         SELECT l.id, sn.id
         FROM locations l
         CROSS JOIN LATERAL unnest(l.styles) AS s(style)
@@ -97,7 +97,7 @@ def upgrade() -> None:
     )
     op.execute(
         """
-        INSERT INTO location_levels (location_id, id_name)
+        INSERT INTO location_levels (location_id, level_id)
         SELECT l.id, ln.id
         FROM locations l
         CROSS JOIN LATERAL unnest(l.levels) AS lv(level)
@@ -148,7 +148,7 @@ def downgrade() -> None:
         SET styles = COALESCE(
             (SELECT array_agg(sn.name ORDER BY sn.name)
              FROM location_styles ls
-             JOIN styles sn ON sn.id = ls.id_name
+             JOIN styles sn ON sn.id = ls.style_id
              WHERE ls.location_id = l.id),
             '{}'::varchar[]
         )
@@ -160,7 +160,7 @@ def downgrade() -> None:
         SET levels = COALESCE(
             (SELECT array_agg(ln.name ORDER BY ln.name)
              FROM location_levels ll
-             JOIN levels ln ON ln.id = ll.id_name
+             JOIN levels ln ON ln.id = ll.level_id
              WHERE ll.location_id = l.id),
             '{}'::varchar[]
         )
