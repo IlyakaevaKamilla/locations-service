@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Type
+from typing import Any
 
 from sqlalchemy import Select, and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 from app.db.models import (
     FavoriteLocation,
     Level,
@@ -17,6 +16,7 @@ from app.db.models import (
     LocationStyle,
     Style,
 )
+from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 
 StrFilter = str | Sequence[str]
 IntFilter = int | Sequence[int]
@@ -55,7 +55,7 @@ def _normalize_int_values(value: IntFilter | None) -> list[int]:
 def _apply_filter_via_junction_table(
     statement: Select,
     values: list[str] | list[int],
-    model: Type,
+    model: type,
     model_field: Any,
     join_model: Any | None = None,
     join_on: Any | None = None,

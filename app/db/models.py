@@ -30,7 +30,7 @@ class LocationChildMixin:
     )
 
     @declared_attr
-    def location(cls) -> Mapped["Location"]:
+    def location(cls) -> Mapped[Location]:
         return relationship(back_populates=cls._location_back_populates)
 
 
@@ -51,9 +51,7 @@ class LocationActivity(LocationChildMixin, Base):
 class Style(ReferenceMixin, Base):
     __tablename__ = "styles"
 
-    location_styles: Mapped[list["LocationStyle"]] = relationship(
-        back_populates="style"
-    )
+    location_styles: Mapped[list[LocationStyle]] = relationship(back_populates="style")
 
 
 class LocationStyle(LocationChildMixin, Base):
@@ -65,15 +63,13 @@ class LocationStyle(LocationChildMixin, Base):
         primary_key=True,
     )
 
-    style: Mapped["Style"] = relationship(back_populates="location_styles")
+    style: Mapped[Style] = relationship(back_populates="location_styles")
 
 
 class Level(ReferenceMixin, Base):
     __tablename__ = "levels"
 
-    location_levels: Mapped[list["LocationLevel"]] = relationship(
-        back_populates="level"
-    )
+    location_levels: Mapped[list[LocationLevel]] = relationship(back_populates="level")
 
 
 class LocationLevel(LocationChildMixin, Base):
@@ -85,7 +81,7 @@ class LocationLevel(LocationChildMixin, Base):
         primary_key=True,
     )
 
-    level: Mapped["Level"] = relationship(back_populates="location_levels")
+    level: Mapped[Level] = relationship(back_populates="location_levels")
 
 
 class Location(Base):
@@ -113,13 +109,8 @@ class Location(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
 
-    favorites: Mapped[list["FavoriteLocation"]] = relationship(
+    favorites: Mapped[list[FavoriteLocation]] = relationship(
         back_populates="location", cascade="all, delete-orphan"
     )
     activities_rel: Mapped[list[LocationActivity]] = relationship(

@@ -18,18 +18,18 @@ from app.crud.locations import (  # noqa E402
     apply_location_filters,
     list_location_filter_options,
 )
-from app.db.models import Location  # noqa E402
-from app.routes.query_params import (  # noqa E402
+from app.db.models import Location
+from app.routes.query_params import (
     _parse_activity_ids,
     _parse_location_id,
     _split_query_values,
 )
-from app.routes.locations import (  # noqa E402
+from app.routes.locations import (
     read_favorite_locations,
     read_locations,
     router,
 )
-from app.services.locations import LocationService  # noqa E402
+from app.services.locations import LocationService
 
 
 class FakeSession:
@@ -720,9 +720,9 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
     async def fake_execute(statement):
         compiled = str(statement.compile(dialect=postgresql.dialect()))
         if "styles" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
         if "levels" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
         raise AssertionError(f"unexpected statement: {compiled}")
 
     monkeypatch.setattr(session, "execute", fake_execute)

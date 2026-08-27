@@ -9,16 +9,16 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-from app.db.base import Base  # noqa E402
-from app.db.models import *  # noqa E402
-from config import settings as se  # noqa E402
+from app.db.base import Base
+from app.db.models import *
+from config import settings as se
 
 target_metadata = Base.metadata
 
 # Alembic не умеет работать с синхронными движками
 config.set_main_option(
     "sqlalchemy.url",
-    f"postgresql+psycopg2://{se.db_user}:{se.db_pass}@{se.db_host}:{se.db_port}/{se.db_name}",
+    f"postgresql+psycopg2://{se.db_user}:{se.db_pass}@localhost:5432/{se.db_name}",
 )
 
 
