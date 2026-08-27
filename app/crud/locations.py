@@ -75,8 +75,7 @@ def _apply_filter_via_junction_table(
                 model.location_id == Location.id,
                 filter_field.in_(values),
             )
-        )
-        .exists()
+        ).exists()
     )
 
 
@@ -197,9 +196,7 @@ async def get_location_by_id(
     return result.scalar_one_or_none()
 
 
-async def get_location_by_slug(
-        session: AsyncSession, slug: str
-) -> Location | None:
+async def get_location_by_slug(session: AsyncSession, slug: str) -> Location | None:
     result = await session.execute(
         select(Location)
         .options(
@@ -360,8 +357,7 @@ async def list_location_filter_options(
         select(Location.country).where(filters).distinct().order_by(Location.country)
     )
     activity_ids_result = await session.execute(
-        select(LocationActivity.activity_id)
-        .distinct()
+        select(LocationActivity.activity_id).distinct()
     )
     styles_result = await session.execute(
         select(Style.name)
@@ -410,20 +406,12 @@ async def admin_create_location(
     new_location.activities_rel = [
         LocationActivity(activity_id=activity_id) for activity_id in activity_ids
     ]
-    style_rows = await session.execute(
-        select(Style).where(Style.name.in_(styles))
-    )
+    style_rows = await session.execute(select(Style).where(Style.name.in_(styles)))
     style_rows = style_rows.scalars().all()
-    new_location.styles_rel = [
-        LocationStyle(style_id=style.id) for style in style_rows
-    ]
-    level_rows = await session.execute(
-        select(Level).where(Level.name.in_(levels))
-    )
+    new_location.styles_rel = [LocationStyle(style_id=style.id) for style in style_rows]
+    level_rows = await session.execute(select(Level).where(Level.name.in_(levels)))
     level_rows = level_rows.scalars().all()
-    new_location.levels_rel = [
-        LocationLevel(level_id=level.id) for level in level_rows
-    ]
+    new_location.levels_rel = [LocationLevel(level_id=level.id) for level in level_rows]
     session.add(new_location)
 
     await session.commit()

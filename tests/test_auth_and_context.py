@@ -11,7 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.dependencies.auth import get_current_user_id, get_optional_current_user_id  # noqa E402
-from app.middlerware.request_context import user_context_middleware
+from app.middlerware.request_context import user_context_middleware  # noqa E402
 
 
 def make_request(*, user=None, headers=None):

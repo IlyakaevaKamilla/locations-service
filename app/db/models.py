@@ -65,9 +65,7 @@ class LocationStyle(LocationChildMixin, Base):
         primary_key=True,
     )
 
-    style: Mapped["Style"] = relationship(
-        back_populates="location_styles"
-    )
+    style: Mapped["Style"] = relationship(back_populates="location_styles")
 
 
 class Level(ReferenceMixin, Base):
@@ -87,9 +85,7 @@ class LocationLevel(LocationChildMixin, Base):
         primary_key=True,
     )
 
-    level: Mapped["Level"] = relationship(
-        back_populates="location_levels"
-    )
+    level: Mapped["Level"] = relationship(back_populates="location_levels")
 
 
 class Location(Base):
@@ -99,8 +95,7 @@ class Location(Base):
     slug: Mapped[str] = mapped_column(String(150), unique=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
     region: Mapped[str] = mapped_column(String(255), index=True)
-    city: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, index=True)
+    city: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     country: Mapped[str] = mapped_column(
         String(120),
         nullable=False,
@@ -109,8 +104,7 @@ class Location(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    distance_to_city_km: Mapped[int | None] = mapped_column(
-        Integer, nullable=True)
+    distance_to_city_km: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

@@ -18,18 +18,18 @@ from app.crud.locations import (  # noqa E402
     apply_location_filters,
     list_location_filter_options,
 )
-from app.db.models import Location # noqa E402
+from app.db.models import Location  # noqa E402
 from app.routes.query_params import (  # noqa E402
     _parse_activity_ids,
     _parse_location_id,
     _split_query_values,
 )
-from app.routes.locations import ( # noqa E402
+from app.routes.locations import (  # noqa E402
     read_favorite_locations,
     read_locations,
     router,
 )
-from app.services.locations import LocationService # noqa E402
+from app.services.locations import LocationService  # noqa E402
 
 
 class FakeSession:
@@ -633,17 +633,27 @@ def test_list_location_filter_options_joins_name_tables(monkeypatch):
     async def fake_execute(statement):
         compiled = str(statement.compile(dialect=postgresql.dialect()))
         if "styles" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["mountain", "freeride"]))
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["mountain", "freeride"])
+            )
         if "levels" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["beginner"]))
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["beginner"])
+            )
         if "location_activities" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [12]))
         if "locations.region" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["Краснодарский край"]))
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["Краснодарский край"])
+            )
         if "locations.city" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["Сочи"]))
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["Сочи"])
+            )
         if "locations.country" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: ["Russia"]))
+            return SimpleNamespace(
+                scalars=lambda: SimpleNamespace(all=lambda: ["Russia"])
+            )
         raise AssertionError(f"unexpected statement: {compiled}")
 
     monkeypatch.setattr(session, "execute", fake_execute)
@@ -681,6 +691,7 @@ def test_admin_create_location_links_styles_and_levels(monkeypatch):
     monkeypatch.setattr(session, "execute", fake_execute)
     monkeypatch.setattr(session, "add", lambda obj: None)
     monkeypatch.setattr(session, "commit", session.commit)
+
     async def fake_refresh(obj, attribute_names=None):
         return None
 
@@ -717,6 +728,7 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
     monkeypatch.setattr(session, "execute", fake_execute)
     monkeypatch.setattr(session, "add", lambda obj: None)
     monkeypatch.setattr(session, "commit", session.commit)
+
     async def fake_refresh(obj, attribute_names=None):
         return None
 
