@@ -55,7 +55,7 @@ def _normalize_int_values(value: IntFilter | None) -> list[int]:
 def _apply_filter_via_junction_table(
     statement: Select,
     values: list[str] | list[int],
-    model: type,
+    model,
     model_field: Any,
     join_model: Any | None = None,
     join_on: Any | None = None,
