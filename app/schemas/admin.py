@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.locations import LocationBase
+from app.schemas.references import ReferenceBase, ReferenceRead
 
 
 class AdminLocationBase(LocationBase):
@@ -28,3 +29,23 @@ class AdminLocationListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class AdminReferenceCreate(ReferenceBase):
+    pass
+
+
+class AdminStyleRead(ReferenceRead):
+    pass
+
+
+class AdminLevelRead(ReferenceRead):
+    pass
+
+
+class AdminStyleCreate(AdminReferenceCreate):
+    pass
+
+
+class AdminLevelCreate(AdminReferenceCreate):
+    pass

@@ -5,21 +5,17 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.locations import LocationRead
 
 
-class ReferenceBase(BaseModel):  # 1
+class ReferenceBase(BaseModel):
     name: str = Field(min_length=1, max_length=150)
 
 
-class ReferenceRead(ReferenceBase):  # 1
+class ReferenceRead(ReferenceBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
 
 
-class ReferenceCreate(ReferenceBase):
-    pass
-
-
-class ReferenceListResponse(BaseModel):  # 1
+class ReferenceListResponse(BaseModel):
     items: list[ReferenceRead]
     total: int
     limit: int
@@ -31,19 +27,3 @@ class ReferenceLocationsResponse(ReferenceRead):
     total: int
     limit: int
     offset: int
-
-
-class StyleRead(ReferenceRead):  # rename to admin
-    pass
-
-
-class LevelRead(ReferenceRead):  # rename to admin
-    pass
-
-
-class StyleCreate(ReferenceCreate):
-    pass
-
-
-class LevelCreate(ReferenceCreate):
-    pass

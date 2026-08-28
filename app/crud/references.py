@@ -4,20 +4,20 @@ from collections.abc import Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.models import Level, Style, Location, LocationLevel, LocationStyle
 from sqlalchemy.orm import selectinload
+
+from app.db.models import Level, Location, LocationLevel, LocationStyle, Style
 
 
 async def get_reference_by_id(
-    session: AsyncSession, model: type[Style] | type[Level], item_id: int
+    session: AsyncSession, model: type[Style | Level], item_id: int
 ) -> Style | Level | None:
     result = await session.execute(select(model).where(model.id == item_id))
     return result.scalar_one_or_none()
 
 
 async def get_reference_by_name(
-    session: AsyncSession, model: type[Style] | type[Level], item_name: str
+    session: AsyncSession, model: type[Style | Level], item_name: str
 ) -> Style | Level | None:
     result = await session.execute(select(model).where(model.name == item_name))
     return result.scalar_one_or_none()
@@ -25,13 +25,13 @@ async def get_reference_by_name(
 
 async def list_references(
     session: AsyncSession,
-    model: type[Style] | type[Level],
+    model: type[Style | Level],
     *,
     search: str | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[Sequence[Style | Level], int]:
-    """Return a paginated list of reference rows with optional filtering by name."""
+    """Return a paginated list of reference rows with optional search (at least 3 symbols) by name."""
     statement = select(model)
     if search:
         statement = statement.where(model.name.ilike(f"%{search.strip()}%"))
@@ -46,7 +46,7 @@ async def list_references(
 
 async def admin_create_reference(
     session: AsyncSession,
-    model: type[Style] | type[Level],
+    model: type[Style | Level],
     name: str,
 ) -> Style | Level:
     item = model(name=name)
@@ -57,7 +57,9 @@ async def admin_create_reference(
 
 
 async def admin_delete_reference(
-    session: AsyncSession, model: type[Style] | type[Level], item_id: int,
+    session: AsyncSession,
+    model: type[Style | Level],
+    item_id: int,
 ) -> bool:
     item = await get_reference_by_id(session, model, item_id)
     if item is None:
@@ -70,7 +72,7 @@ async def admin_delete_reference(
 
 async def list_locations_by_reference(
     session: AsyncSession,
-    model: type[Style] | type[Level],
+    model: type[Style | Level],
     item_id: int,
     *,
     limit: int = 20,

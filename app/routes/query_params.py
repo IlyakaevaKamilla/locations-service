@@ -80,9 +80,7 @@ ActivityIdQuery = Annotated[
 ]
 LocationIdPath = Annotated[int, Depends(_parse_location_id)]
 SearchQuery = Annotated[str | None, Query(max_length=255)]
-ReferenceSearchQuery = Annotated[
-    str | None, Query(min_length=3, max_length=255)
-]
+ReferenceSearchQuery = Annotated[str | None, Query(min_length=3, max_length=150)]
 StringListQuery = Annotated[list[str] | None, Query()]
 LimitQuery = Annotated[int, Query(ge=1, le=100)]
 OffsetQuery = Annotated[int, Query(ge=0)]

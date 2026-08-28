@@ -239,8 +239,7 @@ class LocationService:
                     user_id=user_id,
                     location_ids=[location.id],
                 )
-            read = read.model_copy(
-                update={"is_favorite": location.id in favorite_ids})
+            read = read.model_copy(update={"is_favorite": location.id in favorite_ids})
         return read
 
     @staticmethod

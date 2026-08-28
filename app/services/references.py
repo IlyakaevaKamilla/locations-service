@@ -6,19 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud.references import (
     admin_create_reference,
     admin_delete_reference,
-    get_reference_by_name,
     get_reference_by_id,
-    list_references,
+    get_reference_by_name,
     list_locations_by_reference,
+    list_references,
 )
 from app.db.database import get_async_session
 from app.db.models import Level, Style
-from app.schemas.references import (
-    LevelRead,
-    ReferenceListResponse,
-    StyleRead,
-    ReferenceLocationsResponse
-)
+from app.schemas.admin import AdminLevelRead, AdminStyleRead
+from app.schemas.references import ReferenceListResponse, ReferenceLocationsResponse
 
 
 class ReferenceService:
@@ -49,7 +45,7 @@ class ReferenceService:
 
     async def _list_references(
         self,
-        model: type[Style] | type[Level],
+        model: type[Style | Level],
         *,
         search: str | None = None,
         limit: int = 20,
@@ -67,26 +63,34 @@ class ReferenceService:
         )
 
     async def admin_create_style(
-        self, name: str,
-    ) -> StyleRead:
+        self,
+        name: str,
+    ) -> AdminStyleRead:
         return await self._create_reference(model=Style, name=name)
 
     async def admin_create_level(
-        self, name: str,
-    ) -> LevelRead:
+        self,
+        name: str,
+    ) -> AdminLevelRead:
         return await self._create_reference(model=Level, name=name)
 
     async def _create_reference(
-        self, model: type[Style] | type[Level], name: str
-    ) -> StyleRead | LevelRead:
-        existing = await get_reference_by_name(self.session, model=model, item_name=name)
+        self, model: type[Style | Level], name: str
+    ) -> AdminStyleRead | AdminLevelRead:
+        existing = await get_reference_by_name(
+            self.session, model=model, item_name=name
+        )
         if existing is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"{model.__name__} with that name already exists",
             )
         item = await admin_create_reference(self.session, model=model, name=name)
-        return StyleRead.model_validate(item) if model is Style else LevelRead.model_validate(item)
+        return (
+            AdminStyleRead.model_validate(item)
+            if model is Style
+            else AdminLevelRead.model_validate(item)
+        )
 
     async def admin_delete_style(self, style_id: int) -> None:
         await self._delete_reference(model=Style, item_id=style_id)
@@ -115,13 +119,15 @@ class ReferenceService:
 
     async def _list_reference_locations(
         self,
-        model: type[Style] | type[Level],
+        model: type[Style | Level],
         item_id: int,
         *,
         limit: int = 20,
         offset: int = 0,
     ) -> ReferenceLocationsResponse:
-        reference = await get_reference_by_id(self.session, model=model, item_id=item_id)
+        reference = await get_reference_by_id(
+            self.session, model=model, item_id=item_id
+        )
         if reference is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -140,16 +146,16 @@ class ReferenceService:
             locations=locations,
             total=total,
             limit=limit,
-            offset=offset
+            offset=offset,
         )
 
     async def admin_delete_level(self, level_id: int) -> None:
         await self._delete_reference(model=Level, item_id=level_id)
 
-    async def _delete_reference(
-        self, model: type[Style] | type[Level], item_id: int
-    ) -> None:
-        deleted = await admin_delete_reference(self.session, model=model, item_id=item_id)
+    async def _delete_reference(self, model: type[Style | Level], item_id: int) -> None:
+        deleted = await admin_delete_reference(
+            self.session, model=model, item_id=item_id
+        )
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

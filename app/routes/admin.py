@@ -6,14 +6,19 @@ from app.routes.query_params import (
     LocationIdPath,
     LocationServiceDep,
     OffsetQuery,
+    ReferenceServiceDep,
     SearchQuery,
     StringListQuery,
     _split_query_values,
 )
 from app.schemas.admin import (
+    AdminLevelCreate,
+    AdminLevelRead,
     AdminLocationCreate,
     AdminLocationListResponse,
     AdminLocationRead,
+    AdminStyleCreate,
+    AdminStyleRead,
 )
 from app.schemas.locations import LocationFilterOptions
 
@@ -72,3 +77,40 @@ async def create_location(
 @router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_location_by_id(service: LocationServiceDep, location_id: int):
     await service.admin_delete_location(location_id)
+
+
+admin_references_router = APIRouter(
+    prefix="/api/admin/references", tags=["Admin References"]
+)
+
+
+@admin_references_router.post(
+    "/styles", status_code=status.HTTP_201_CREATED, response_model=AdminStyleRead
+)
+async def create_style(
+    service: ReferenceServiceDep, style_data: AdminStyleCreate
+) -> AdminStyleRead:
+    return await service.admin_create_style(style_data.name)
+
+
+@admin_references_router.post(
+    "/levels", status_code=status.HTTP_201_CREATED, response_model=AdminLevelRead
+)
+async def create_levels(
+    service: ReferenceServiceDep, level_data: AdminLevelCreate
+) -> AdminLevelRead:
+    return await service.admin_create_level(level_data.name)
+
+
+@admin_references_router.delete(
+    "/styles/{style_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_style_by_id(service: ReferenceServiceDep, style_id: int):
+    await service.admin_delete_style(style_id)
+
+
+@admin_references_router.delete(
+    "/levels/{level_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_level_by_id(service: ReferenceServiceDep, level_id: int):
+    await service.admin_delete_level(level_id)

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.middlerware.request_context import user_context_middleware
+from app.routes.admin import admin_references_router
 from app.routes.admin import router as admin_router
 from app.routes.locations import router as locations_router
 from app.routes.references import router as references_router
@@ -42,6 +43,8 @@ def create_app() -> FastAPI:
     app.include_router(references_router)
 
     app.include_router(admin_router)
+
+    app.include_router(admin_references_router)
 
     return app
 
