@@ -73,7 +73,7 @@ async def user_context_middleware(request: Request, call_next):
             else:
                 request.state.user = {}
                 logger.debug("No user context found in request")
-        except (ValueError, json.JSONDecodeError, UnicodeDecodeError, TypeError) as e:
+        except (ValueError, json.JSONDecodeError) as e:
             logger.warning(f"Invalid X-User-Claims header: {e}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
