@@ -24,37 +24,41 @@ class ReferenceService:
     async def list_styles(
         self,
         *,
-        search: str | None = None,
+        name: str | None = None,
+        id: int | list[int] | None = None,
         limit: int = 20,
         offset: int = 0,
     ):
         return await self._list_references(
-            model=Style, search=search, limit=limit, offset=offset
+            model=Style, name=name, id=id, limit=limit, offset=offset
         )
 
     async def list_levels(
         self,
         *,
-        search: str | None = None,
+        name: str | None = None,
+        id: int | list[int] | None = None,
         limit: int = 20,
         offset: int = 0,
     ):
         return await self._list_references(
-            model=Level, search=search, limit=limit, offset=offset
+            model=Level, name=name, id=id, limit=limit, offset=offset
         )
 
     async def _list_references(
         self,
         model: type[Style | Level],
         *,
-        search: str | None = None,
+        name: str | None = None,
+        id: int | list[int] | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> ReferenceListResponse:
         items, total = await list_references(
             self.session,
             model=model,
-            search=search,
+            name=name,
+            id=id,
             limit=limit,
             offset=offset,
         )

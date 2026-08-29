@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy import Select, and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, DeclarativeBase
 
 from app.db.models import (
     FavoriteLocation,
@@ -20,6 +20,7 @@ from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 
 StrFilter = str | Sequence[str]
 IntFilter = int | Sequence[int]
+ModelT = TypeVar("ModelT", bound=DeclarativeBase)
 
 
 def _as_sequence[T](value: T | Sequence[T] | None) -> list[T]:
@@ -55,7 +56,7 @@ def _normalize_int_values(value: IntFilter | None) -> list[int]:
 def _apply_filter_via_junction_table(
     statement: Select,
     values: list[str] | list[int],
-    model,
+    model: type[ModelT],
     model_field: Any,
     join_model: Any | None = None,
     join_on: Any | None = None,

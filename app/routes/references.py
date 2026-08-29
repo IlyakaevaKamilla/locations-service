@@ -14,21 +14,23 @@ router = APIRouter(prefix="/api/references", tags=["references"])
 @router.get("/styles", response_model=ReferenceListResponse)
 async def read_styles(
     service: ReferenceServiceDep,
-    search: ReferenceSearchQuery = None,
+    name: ReferenceSearchQuery = None,
+    id: int | list[int] | None = None,
     limit: LimitQuery = 20,
     offset: OffsetQuery = 0,
 ):
-    return await service.list_styles(search=search, limit=limit, offset=offset)
+    return await service.list_styles(name=name, id=id, limit=limit, offset=offset)
 
 
 @router.get("/levels", response_model=ReferenceListResponse)
 async def read_levels(
     service: ReferenceServiceDep,
-    search: ReferenceSearchQuery = None,
+    name: ReferenceSearchQuery = None,
+    id: int | list[int] | None = None,
     limit: LimitQuery = 20,
     offset: OffsetQuery = 0,
 ):
-    return await service.list_levels(search=search, limit=limit, offset=offset)
+    return await service.list_levels(name=name, id=id, limit=limit, offset=offset)
 
 
 @router.get("/styles/{style_id}/locations", response_model=ReferenceLocationsResponse)

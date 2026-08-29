@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TypeVar, Union
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,33 +9,43 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models import Level, Location, LocationLevel, LocationStyle, Style
 
+PossibleModels = Union[Style, Level]
+ModelT = TypeVar("ModelT", bound=PossibleModels)
+
 
 async def get_reference_by_id(
-    session: AsyncSession, model: type[Style | Level], item_id: int
-) -> Style | Level | None:
+    session: AsyncSession, model: type[ModelT], item_id: int
+) -> ModelT | None:
     result = await session.execute(select(model).where(model.id == item_id))
     return result.scalar_one_or_none()
 
 
 async def get_reference_by_name(
-    session: AsyncSession, model: type[Style | Level], item_name: str
-) -> Style | Level | None:
+    session: AsyncSession, model: type[ModelT], item_name: str
+) -> ModelT | None:
     result = await session.execute(select(model).where(model.name == item_name))
     return result.scalar_one_or_none()
 
 
 async def list_references(
     session: AsyncSession,
-    model: type[Style | Level],
+    model: type[ModelT],
     *,
-    search: str | None = None,
+    name: str | None = None,
+    id: int | list[int] | None = None,
     limit: int = 20,
     offset: int = 0,
-) -> tuple[Sequence[Style | Level], int]:
+) -> tuple[Sequence[ModelT], int]:
     """Return a paginated list of reference rows with optional search (at least 3 symbols) by name."""
     statement = select(model)
-    if search:
-        statement = statement.where(model.name.ilike(f"%{search.strip()}%"))
+    if id is not None:
+        if isinstance(id, list):
+            if id:
+                statement = statement.where(model.id.in_(id))
+        else:
+            statement = statement.where(model.id == id)
+    if name:
+        statement = statement.where(model.name.ilike(f"%{name.strip()}%"))
 
     total_statement = select(func.count()).select_from(statement.subquery())
     total = await session.scalar(total_statement)
@@ -46,7 +57,7 @@ async def list_references(
 
 async def admin_create_reference(
     session: AsyncSession,
-    model: type[Style | Level],
+    model: type[ModelT],
     name: str,
 ) -> Style | Level:
     item = model(name=name)
@@ -58,7 +69,7 @@ async def admin_create_reference(
 
 async def admin_delete_reference(
     session: AsyncSession,
-    model: type[Style | Level],
+    model: type[ModelT],
     item_id: int,
 ) -> bool:
     item = await get_reference_by_id(session, model, item_id)
@@ -70,9 +81,9 @@ async def admin_delete_reference(
     return True
 
 
-async def list_locations_by_reference(
+async def list_locations_by_reference(  # если появится еще один справочник реализация сломается.
     session: AsyncSession,
-    model: type[Style | Level],
+    model: type[ModelT],
     item_id: int,
     *,
     limit: int = 20,
@@ -97,9 +108,11 @@ async def list_locations_by_reference(
         .where(reference_id == item_id, Location.is_active.is_(True))
     )
 
-    total_statement = select(func.count()).select_from(base_statement.subquery())
+    total_statement = select(func.count()).select_from(
+        base_statement.subquery())
     total = await session.scalar(total_statement)
 
-    statement = base_statement.order_by(Location.name).limit(limit).offset(offset)
+    statement = base_statement.order_by(
+        Location.name).limit(limit).offset(offset)
     result = await session.execute(statement)
     return result.scalars().all(), int(total or 0)

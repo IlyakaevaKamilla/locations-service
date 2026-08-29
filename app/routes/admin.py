@@ -85,7 +85,7 @@ admin_references_router = APIRouter(
 
 
 @admin_references_router.post(
-    "/styles", status_code=status.HTTP_201_CREATED, response_model=AdminStyleRead
+    "/styles", status_code=status.HTTP_201_CREATED
 )
 async def create_style(
     service: ReferenceServiceDep, style_data: AdminStyleCreate
@@ -94,7 +94,7 @@ async def create_style(
 
 
 @admin_references_router.post(
-    "/levels", status_code=status.HTTP_201_CREATED, response_model=AdminLevelRead
+    "/levels", status_code=status.HTTP_201_CREATED
 )
 async def create_levels(
     service: ReferenceServiceDep, level_data: AdminLevelCreate
@@ -114,3 +114,5 @@ async def delete_style_by_id(service: ReferenceServiceDep, style_id: int):
 )
 async def delete_level_by_id(service: ReferenceServiceDep, level_id: int):
     await service.admin_delete_level(level_id)
+
+# Нужен еще функционал патчить справочники

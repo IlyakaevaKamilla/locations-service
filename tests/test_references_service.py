@@ -105,7 +105,7 @@ def test_list_references_applies_search_and_pagination(monkeypatch):
     monkeypatch.setattr(session, "execute", fake_execute)
 
     items, total = asyncio.run(
-        list_references(session, Style, search="mou", limit=10, offset=0)
+        list_references(session, Style, name="mou", limit=10, offset=0)
     )
 
     assert items == [style]
@@ -239,14 +239,14 @@ def test_list_styles_returns_reference_list_response(monkeypatch):
     async def fake_list_references(db, model, **kwargs):
         assert db is session
         assert model is Style
-        assert kwargs["search"] == "mou"
+        assert kwargs["name"] == "mou"
         assert kwargs["limit"] == 10
         assert kwargs["offset"] == 0
         return [style], 1
 
     monkeypatch.setattr("app.services.references.list_references", fake_list_references)
 
-    result = asyncio.run(service.list_styles(search="mou", limit=10, offset=0))
+    result = asyncio.run(service.list_styles(name="mou", limit=10, offset=0))
 
     assert result.total == 1
     assert result.items[0].name == "mountain"
@@ -403,13 +403,13 @@ def test_read_styles_passes_query_params_to_service():
     asyncio.run(
         read_styles(
             service=service,
-            search="mou",
+            name="mou",
             limit=10,
             offset=5,
         )
     )
 
-    assert service.kwargs["search"] == "mou"
+    assert service.kwargs["name"] == "mou"
     assert service.kwargs["limit"] == 10
     assert service.kwargs["offset"] == 5
 
@@ -426,13 +426,13 @@ def test_read_levels_passes_query_params_to_service():
     asyncio.run(
         read_levels(
             service=service,
-            search="pro",
+            name="pro",
             limit=10,
             offset=5,
         )
     )
 
-    assert service.kwargs["search"] == "pro"
+    assert service.kwargs["name"] == "pro"
     assert service.kwargs["limit"] == 10
     assert service.kwargs["offset"] == 5
 
@@ -562,7 +562,7 @@ def test_references_search_requires_min_three_characters():
 
     parameters = app.openapi()["paths"]["/api/references/styles"]["get"]["parameters"]
     search_schema = next(
-        parameter["schema"] for parameter in parameters if parameter["name"] == "search"
+        parameter["schema"] for parameter in parameters if parameter["name"] == "name"
     )
 
     assert search_schema["anyOf"][0]["minLength"] == 3
