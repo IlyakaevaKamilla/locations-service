@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import FastAPI, HTTPException
 
-from app.db.models import Level, Style
+from app.db.models import Level, LocationLevel, LocationStyle, Style
 from app.services.references import ReferenceService
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 from app.crud.references import (
     admin_create_reference,
     admin_delete_reference,
+    admin_update_reference,
     list_locations_by_reference,
     list_references,
 )
@@ -33,62 +34,7 @@ from app.routes.references import (
     read_styles,
     router,
 )
-
-
-class FakeSession:
-    def __init__(self):
-        self.commits = 0
-        self.rollbacks = 0
-
-    async def commit(self):
-        self.commits += 1
-
-    async def rollback(self):
-        self.rollbacks += 1
-
-    async def execute(self, statement):
-        raise AssertionError("FakeSession.execute should be monkeypatched")
-
-    async def scalar(self, statement):
-        raise AssertionError("FakeSession.scalar should be monkeypatched")
-
-    def add(self, obj):
-        raise AssertionError("FakeSession.add should be monkeypatched")
-
-    async def refresh(self, obj, attribute_names=None):
-        raise AssertionError("FakeSession.refresh should be monkeypatched")
-
-    async def delete(self, obj):
-        raise AssertionError("FakeSession.delete should be monkeypatched")
-
-
-def make_reference(model, **overrides):
-    payload = {"id": 1, "name": "новичок"}
-    payload.update(overrides)
-    return SimpleNamespace(**payload)
-
-
-def make_location(**overrides):
-    payload = {
-        "id": 1,
-        "slug": "rosa-khutor",
-        "name": "Роза Хутор",
-        "region": "Краснодарский край",
-        "city": "Сочи",
-        "country": "Russia",
-        "description": None,
-        "latitude": 43.674,
-        "longitude": 40.206,
-        "distance_to_city_km": 70,
-        "activity_ids": [12],
-        "styles": ["mountain"],
-        "levels": ["beginner"],
-        "is_active": True,
-        "created_at": "2026-04-13T00:00:00Z",
-        "updated_at": "2026-04-13T00:00:00Z",
-    }
-    payload.update(overrides)
-    return SimpleNamespace(**payload)
+from tests.fakes import FakeSession, make_location, make_reference
 
 
 def test_list_references_applies_search_and_pagination(monkeypatch):
@@ -129,6 +75,130 @@ def test_list_references_without_search_returns_all(monkeypatch):
 
     assert items == [level]
     assert total == 1
+
+
+def test_list_references_filters_by_single_id(monkeypatch):
+    session = FakeSession()
+    style = make_reference(Style, id=5, name="mountain")
+
+    async def fake_scalar(statement):
+        return 1
+
+    async def fake_execute(statement):
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [style]))
+
+    monkeypatch.setattr(session, "scalar", fake_scalar)
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    items, total = asyncio.run(list_references(session, Style, id=5))
+
+    assert items == [style]
+    assert total == 1
+
+
+def test_list_references_filters_by_id_list(monkeypatch):
+    session = FakeSession()
+    styles = [
+        make_reference(Style, id=1, name="mountain"),
+        make_reference(Style, id=2, name="sea"),
+    ]
+
+    async def fake_scalar(statement):
+        return 2
+
+    async def fake_execute(statement):
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: styles))
+
+    monkeypatch.setattr(session, "scalar", fake_scalar)
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    items, total = asyncio.run(list_references(session, Style, id=[1, 2]))
+
+    assert items == styles
+    assert total == 2
+
+
+def test_list_references_filters_by_name(monkeypatch):
+    session = FakeSession()
+    style = make_reference(Style, id=1, name="mountain")
+
+    async def fake_scalar(statement):
+        return 1
+
+    async def fake_execute(statement):
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [style]))
+
+    monkeypatch.setattr(session, "scalar", fake_scalar)
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    items, total = asyncio.run(list_references(session, Style, name="mou"))
+
+    assert items == [style]
+    assert total == 1
+
+
+def test_list_references_combines_name_and_id(monkeypatch):
+    session = FakeSession()
+    style = make_reference(Style, id=1, name="mountain")
+
+    async def fake_scalar(statement):
+        return 1
+
+    async def fake_execute(statement):
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [style]))
+
+    monkeypatch.setattr(session, "scalar", fake_scalar)
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    items, total = asyncio.run(list_references(session, Style, name="mou", id=1))
+
+    assert items == [style]
+    assert total == 1
+
+
+def test_list_references_empty_id_list_returns_all(monkeypatch):
+    session = FakeSession()
+    style = make_reference(Style, id=1, name="mountain")
+
+    async def fake_scalar(statement):
+        return 1
+
+    async def fake_execute(statement):
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [style]))
+
+    monkeypatch.setattr(session, "scalar", fake_scalar)
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    items, total = asyncio.run(list_references(session, Style, id=[]))
+
+    assert items == [style]
+    assert total == 1
+
+
+def test_list_references_builds_where_for_name_and_id(monkeypatch):
+    session = FakeSession()
+    captured = {}
+
+    async def fake_scalar(statement):
+        captured["total_sql"] = str(statement.compile(dialect=None))
+        return 1
+
+    async def fake_execute(statement):
+        captured["sql"] = str(statement.compile(dialect=None))
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
+
+    monkeypatch.setattr(session, "scalar", fake_scalar)
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    asyncio.run(list_references(session, Style, name="mou", id=[1, 2]))
+
+    sql = captured["sql"]
+    assert "styles.id IN" in sql
+    assert "lower(styles.name) LIKE" in sql
+
+    total_sql = captured["total_sql"]
+    assert "styles.id IN" in total_sql
+    assert "lower(styles.name) LIKE" in total_sql
 
 
 def test_admin_create_reference_commits_and_refreshes(monkeypatch):
@@ -203,7 +273,9 @@ def test_list_locations_by_reference_joins_style_junction(monkeypatch):
     monkeypatch.setattr(session, "execute", fake_execute)
 
     locations, total = asyncio.run(
-        list_locations_by_reference(session, Style, 1, limit=20, offset=0)
+        list_locations_by_reference(
+            session, 1, LocationStyle, LocationStyle.style_id, limit=20, offset=0
+        )
     )
 
     assert locations == [location]
@@ -224,7 +296,9 @@ def test_list_locations_by_reference_joins_level_junction(monkeypatch):
     monkeypatch.setattr(session, "execute", fake_execute)
 
     locations, total = asyncio.run(
-        list_locations_by_reference(session, Level, 2, limit=20, offset=0)
+        list_locations_by_reference(
+            session, 2, LocationLevel, LocationLevel.level_id, limit=20, offset=0
+        )
     )
 
     assert locations == [location]
@@ -270,23 +344,21 @@ def test_list_levels_returns_reference_list_response(monkeypatch):
     assert result.items[0].name == "pro"
 
 
-def test_create_reference_raises_400_on_duplicate(monkeypatch):
+@pytest.mark.asyncio
+async def test_create_reference_raises_400_on_duplicate(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
-    existing = make_reference(Style, id=1, name="mountain")
 
-    async def fake_get_reference_by_name(db, model, item_name):
+    async def fake_is_name_unique(db, model, name, exclude_id=None):
         assert db is session
         assert model is Style
-        assert item_name == "mountain"
-        return existing
+        assert name == "mountain"
+        return False
 
-    monkeypatch.setattr(
-        "app.services.references.get_reference_by_name", fake_get_reference_by_name
-    )
+    monkeypatch.setattr("app.services.references.is_name_unique", fake_is_name_unique)
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(service.admin_create_style("mountain"))
+        await service.admin_create_style("mountain")
 
     assert exc_info.value.status_code == 400
     assert "already exists" in exc_info.value.detail
@@ -297,8 +369,11 @@ def test_create_reference_returns_admin_read(monkeypatch):
     service = ReferenceService(session)
     style = make_reference(Style, id=1, name="mountain")
 
-    async def fake_get_reference_by_name(db, model, item_name):
-        return None
+    async def fake_is_name_unique(db, model, name, exclude_id=None):
+        assert db is session
+        assert model is Style
+        assert name == "mountain"
+        return True
 
     async def fake_admin_create_reference(db, model, name):
         assert db is session
@@ -306,9 +381,7 @@ def test_create_reference_returns_admin_read(monkeypatch):
         assert name == "mountain"
         return style
 
-    monkeypatch.setattr(
-        "app.services.references.get_reference_by_name", fake_get_reference_by_name
-    )
+    monkeypatch.setattr("app.services.references.is_name_unique", fake_is_name_unique)
     monkeypatch.setattr(
         "app.services.references.admin_create_reference", fake_admin_create_reference
     )
@@ -319,7 +392,133 @@ def test_create_reference_returns_admin_read(monkeypatch):
     assert result.name == "mountain"
 
 
-def test_delete_reference_raises_404_when_missing(monkeypatch):
+def test_admin_update_reference_commits_and_refreshes(monkeypatch):
+    session = FakeSession()
+    style = make_reference(Style, id=1, name="old")
+
+    async def fake_get_reference_by_id(db, model, item_id):
+        assert db is session
+        assert model is Style
+        assert item_id == 1
+        return style
+
+    async def fake_refresh(obj, attribute_names=None):
+        return None
+
+    monkeypatch.setattr(
+        "app.crud.references.get_reference_by_id", fake_get_reference_by_id
+    )
+    monkeypatch.setattr(session, "commit", session.commit)
+    monkeypatch.setattr(session, "refresh", fake_refresh)
+
+    result = asyncio.run(admin_update_reference(session, Style, 1, name="new"))
+
+    assert result is style
+    assert style.name == "new"
+    assert session.commits == 1
+
+
+def test_admin_update_reference_returns_none_when_missing(monkeypatch):
+    session = FakeSession()
+
+    async def fake_get_reference_by_id(db, model, item_id):
+        return None
+
+    monkeypatch.setattr(
+        "app.crud.references.get_reference_by_id", fake_get_reference_by_id
+    )
+
+    result = asyncio.run(admin_update_reference(session, Style, 999, name="new"))
+
+    assert result is None
+    assert session.commits == 0
+
+
+@pytest.mark.asyncio
+async def test_update_reference_raises_404_when_missing(monkeypatch):
+    session = FakeSession()
+    service = ReferenceService(session)
+
+    async def fake_get_reference_by_id(db, model, item_id):
+        return None
+
+    async def fake_is_name_unique(db, model, name, exclude_id=None):
+        return True
+
+    monkeypatch.setattr(
+        "app.crud.references.get_reference_by_id", fake_get_reference_by_id
+    )
+    monkeypatch.setattr("app.services.references.is_name_unique", fake_is_name_unique)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.admin_update_style(item_id=999, name="new")
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_reference_raises_400_on_duplicate_name(monkeypatch):
+    session = FakeSession()
+    service = ReferenceService(session)
+    style = make_reference(Style, id=1, name="old")
+
+    async def fake_get_reference_by_id(db, model, item_id):
+        return style
+
+    async def fake_is_name_unique(db, model, name, exclude_id=None):
+        assert db is session
+        assert model is Style
+        assert name == "new"
+        assert exclude_id == 1
+        return False
+
+    monkeypatch.setattr(
+        "app.services.references.get_reference_by_id", fake_get_reference_by_id
+    )
+    monkeypatch.setattr("app.services.references.is_name_unique", fake_is_name_unique)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.admin_update_style(item_id=1, name="new")
+
+    assert exc_info.value.status_code == 400
+    assert "already exists" in exc_info.value.detail
+
+
+def test_update_reference_returns_admin_read(monkeypatch):
+    session = FakeSession()
+    service = ReferenceService(session)
+    style = make_reference(Style, id=1, name="new")
+
+    async def fake_get_reference_by_id(db, model, item_id):
+        return style
+
+    async def fake_is_name_unique(db, model, name, exclude_id=None):
+        assert exclude_id == 1
+        return True
+
+    async def fake_admin_update_reference(db, model, item_id, **kwargs):
+        assert db is session
+        assert model is Style
+        assert item_id == 1
+        assert kwargs == {"name": "new"}
+        return style
+
+    monkeypatch.setattr(
+        "app.services.references.get_reference_by_id", fake_get_reference_by_id
+    )
+    monkeypatch.setattr("app.services.references.is_name_unique", fake_is_name_unique)
+    monkeypatch.setattr(
+        "app.services.references.admin_update_reference", fake_admin_update_reference
+    )
+
+    result = asyncio.run(service.admin_update_style(item_id=1, name="new"))
+
+    assert result.id == 1
+    assert result.name == "new"
+
+
+@pytest.mark.asyncio
+async def test_delete_reference_raises_404_when_missing(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
 
@@ -331,12 +530,13 @@ def test_delete_reference_raises_404_when_missing(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(service.admin_delete_style(999))
+        await service.admin_delete_style(999)
 
     assert exc_info.value.status_code == 404
 
 
-def test_list_reference_locations_raises_404_when_reference_missing(monkeypatch):
+@pytest.mark.asyncio
+async def test_list_reference_locations_raises_404_when_reference_missing(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
 
@@ -348,7 +548,7 @@ def test_list_reference_locations_raises_404_when_reference_missing(monkeypatch)
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(service.list_style_locations(999))
+        await service.list_style_locations(999)
 
     assert exc_info.value.status_code == 404
 
@@ -365,10 +565,13 @@ def test_list_reference_locations_returns_id_name_and_locations(monkeypatch):
         assert item_id == 1
         return style
 
-    async def fake_list_locations_by_reference(db, model, item_id, **kwargs):
+    async def fake_list_locations_by_reference(
+        db, item_id, junction_model, reference_field, **kwargs
+    ):
         assert db is session
-        assert model is Style
         assert item_id == 1
+        assert junction_model is LocationStyle
+        assert reference_field is LocationStyle.style_id
         assert kwargs["limit"] == 20
         assert kwargs["offset"] == 0
         return [location], 1

@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.mixins import PaginationMixin
+
 
 class LocationBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -36,11 +38,8 @@ class LocationCreate(LocationBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class LocationListResponse(BaseModel):
+class LocationListResponse(PaginationMixin, BaseModel):
     items: list[LocationRead]
-    total: int
-    limit: int
-    offset: int
 
 
 class LocationFilterOptions(BaseModel):

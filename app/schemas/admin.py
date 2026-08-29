@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.locations import LocationBase
+from app.schemas.mixins import PaginationMixin
 from app.schemas.references import ReferenceBase, ReferenceRead
 
 
@@ -24,11 +25,8 @@ class AdminLocationCreate(AdminLocationBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class AdminLocationListResponse(BaseModel):
+class AdminLocationListResponse(PaginationMixin, BaseModel):
     items: list[AdminLocationRead]
-    total: int
-    limit: int
-    offset: int
 
 
 class AdminReferenceCreate(ReferenceBase):

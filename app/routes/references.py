@@ -3,7 +3,8 @@ from fastapi import APIRouter
 from app.routes.query_params import (
     LimitQuery,
     OffsetQuery,
-    ReferenceSearchQuery,
+    ReferenceIdQuery,
+    ReferenceNameQuery,
     ReferenceServiceDep,
 )
 from app.schemas.references import ReferenceListResponse, ReferenceLocationsResponse
@@ -14,8 +15,8 @@ router = APIRouter(prefix="/api/references", tags=["references"])
 @router.get("/styles", response_model=ReferenceListResponse)
 async def read_styles(
     service: ReferenceServiceDep,
-    name: ReferenceSearchQuery = None,
-    id: int | list[int] | None = None,
+    name: ReferenceNameQuery = None,
+    id: ReferenceIdQuery = None,
     limit: LimitQuery = 20,
     offset: OffsetQuery = 0,
 ):
@@ -25,8 +26,8 @@ async def read_styles(
 @router.get("/levels", response_model=ReferenceListResponse)
 async def read_levels(
     service: ReferenceServiceDep,
-    name: ReferenceSearchQuery = None,
-    id: int | list[int] | None = None,
+    name: ReferenceNameQuery = None,
+    id: ReferenceIdQuery = None,
     limit: LimitQuery = 20,
     offset: OffsetQuery = 0,
 ):

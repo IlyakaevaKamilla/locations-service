@@ -84,18 +84,14 @@ admin_references_router = APIRouter(
 )
 
 
-@admin_references_router.post(
-    "/styles", status_code=status.HTTP_201_CREATED
-)
+@admin_references_router.post("/styles", status_code=status.HTTP_201_CREATED)
 async def create_style(
     service: ReferenceServiceDep, style_data: AdminStyleCreate
 ) -> AdminStyleRead:
     return await service.admin_create_style(style_data.name)
 
 
-@admin_references_router.post(
-    "/levels", status_code=status.HTTP_201_CREATED
-)
+@admin_references_router.post("/levels", status_code=status.HTTP_201_CREATED)
 async def create_levels(
     service: ReferenceServiceDep, level_data: AdminLevelCreate
 ) -> AdminLevelRead:
@@ -115,4 +111,20 @@ async def delete_style_by_id(service: ReferenceServiceDep, style_id: int):
 async def delete_level_by_id(service: ReferenceServiceDep, level_id: int):
     await service.admin_delete_level(level_id)
 
-# Нужен еще функционал патчить справочники
+
+@admin_references_router.patch("/styles/{style_id}", status_code=status.HTTP_200_OK)
+async def update_style_by_id(
+    service: ReferenceServiceDep,
+    style_id: int,
+    style_data: AdminStyleCreate,
+) -> AdminStyleRead:
+    return await service.admin_update_style(item_id=style_id, name=style_data.name)
+
+
+@admin_references_router.patch("/levels/{level_id}", status_code=status.HTTP_200_OK)
+async def update_level_by_id(
+    service: ReferenceServiceDep,
+    level_id: int,
+    level_data: AdminLevelCreate,
+) -> AdminLevelRead:
+    return await service.admin_update_level(item_id=level_id, name=level_data.name)

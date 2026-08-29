@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, TypeVar
+from typing import Any
 
 from sqlalchemy import Select, and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, DeclarativeBase
+from sqlalchemy.orm import selectinload
 
 from app.db.models import (
     FavoriteLocation,
@@ -17,10 +17,10 @@ from app.db.models import (
     Style,
 )
 from app.schemas.admin import AdminLocationCreate, AdminLocationRead
+from app.types import JunctionT
 
 StrFilter = str | Sequence[str]
 IntFilter = int | Sequence[int]
-ModelT = TypeVar("ModelT", bound=DeclarativeBase)
 
 
 def _as_sequence[T](value: T | Sequence[T] | None) -> list[T]:
@@ -56,7 +56,7 @@ def _normalize_int_values(value: IntFilter | None) -> list[int]:
 def _apply_filter_via_junction_table(
     statement: Select,
     values: list[str] | list[int],
-    model: type[ModelT],
+    model: type[JunctionT],
     model_field: Any,
     join_model: Any | None = None,
     join_on: Any | None = None,
@@ -67,7 +67,7 @@ def _apply_filter_via_junction_table(
     if not values:
         return statement
     filter_field = func.lower(model_field) if is_lower else model_field
-    query = select(1).select_from(model.__table__)
+    query = select(1).select_from(model)
     if join_model is not None and join_on is not None:
         query = query.where(join_on)
     return statement.where(
