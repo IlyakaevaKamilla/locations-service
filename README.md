@@ -20,6 +20,12 @@
 - `GET /api/admin/locations/filters` - доступные значения фильтров по активным локациям;
 - `POST /api/admin/locations/` - создать локацию;
 - `DELETE /api/admin/locations/{location_id}` - удалить локацию.
+- `POST /api/admin/references/styles` - создать стиль;
+- `POST /api/admin/references/levels` - создать уровень;
+- `PATCH /api/admin/references/styles/{style_id}` - переименовать стиль;
+- `PATCH /api/admin/references/levels/{level_id}` - переименовать уровень;
+- `DELETE /api/admin/references/styles/{style_id}` - удалить стиль;
+- `DELETE /api/admin/references/levels/{level_id}` - удалить уровень.
 
 ### Фильтры локаций
 
@@ -38,6 +44,20 @@
 `search` применяется как общее ограничение ко всему результату. Публичный API всегда возвращает только активные локации и не принимает `is_active` как query-параметр. Ручка `GET /api/locations/favorites` также возвращает только активные избранные локации.
 
 `location_id` и `activity_id` должны помещаться в диапазон PostgreSQL `integer`: от `1` до `2147483647`. Значения выше этого диапазона возвращают `404 Not Found`, чтобы не передавать некорректный integer в БД.
+
+### Справочники
+
+Справочники — это стили и уровни сложности, которыми помечаются локации. Пользователь может только читать их, админ — управлять ими.
+
+Публичные ручки (доступны пользователю):
+
+- `GET /api/references/styles` - список стилей с фильтрами `name`, `id`, `limit`, `offset`;
+- `GET /api/references/levels` - список уровней с фильтрами `name`, `id`, `limit`, `offset`;
+- `GET /api/references/styles/{style_id}/locations` - активные локации, связанные со стилем;
+- `GET /api/references/levels/{level_id}/locations` - активные локации, связанные с уровнем.
+
+
+Создание и обновление справочника проверяет уникальность имени: дубликат возвращает `400 Bad Request`. Удаление или обновление несуществующего элемента возвращает `404 Not Found`.
 
 ### Активность локаций
 
