@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, Path, Query, status
 from pydantic import BeforeValidator
 
 from app.services.locations import LocationService, get_location_service
+from app.services.references import ReferenceService, get_reference_service
 
 MAX_INT32 = 2_147_483_647
 
@@ -79,7 +80,10 @@ ActivityIdQuery = Annotated[
 ]
 LocationIdPath = Annotated[int, Depends(_parse_location_id)]
 SearchQuery = Annotated[str | None, Query(max_length=255)]
+ReferenceNameQuery = Annotated[str | None, Query(min_length=3, max_length=150)]
+ReferenceIdQuery = Annotated[int | list[int] | None, Query()]
 StringListQuery = Annotated[list[str] | None, Query()]
 LimitQuery = Annotated[int, Query(ge=1, le=100)]
 OffsetQuery = Annotated[int, Query(ge=0)]
 LocationServiceDep = Annotated[LocationService, Depends(get_location_service)]
+ReferenceServiceDep = Annotated[ReferenceService, Depends(get_reference_service)]

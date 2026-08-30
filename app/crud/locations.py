@@ -17,6 +17,7 @@ from app.db.models import (
     Style,
 )
 from app.schemas.admin import AdminLocationCreate, AdminLocationRead
+from app.types import JunctionT
 
 StrFilter = str | Sequence[str]
 IntFilter = int | Sequence[int]
@@ -55,7 +56,7 @@ def _normalize_int_values(value: IntFilter | None) -> list[int]:
 def _apply_filter_via_junction_table(
     statement: Select,
     values: list[str] | list[int],
-    model: type,
+    model: type[JunctionT],
     model_field: Any,
     join_model: Any | None = None,
     join_on: Any | None = None,
@@ -66,7 +67,7 @@ def _apply_filter_via_junction_table(
     if not values:
         return statement
     filter_field = func.lower(model_field) if is_lower else model_field
-    query = select(1).select_from(model.__table__)
+    query = select(1).select_from(model)
     if join_model is not None and join_on is not None:
         query = query.where(join_on)
     return statement.where(
