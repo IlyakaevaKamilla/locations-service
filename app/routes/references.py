@@ -20,7 +20,7 @@ async def read_styles(
     limit: LimitQuery = 20,
     offset: OffsetQuery = 0,
 ):
-    return await service.list_styles(name=name, id=id, limit=limit, offset=offset)
+    return await service.list_styles(name=name, style_id=id, limit=limit, offset=offset)
 
 
 @router.get("/levels", response_model=ReferenceListResponse)
@@ -31,7 +31,7 @@ async def read_levels(
     limit: LimitQuery = 20,
     offset: OffsetQuery = 0,
 ):
-    return await service.list_levels(name=name, id=id, limit=limit, offset=offset)
+    return await service.list_levels(name=name, list_id=id, limit=limit, offset=offset)
 
 
 @router.get("/styles/{style_id}/locations", response_model=ReferenceLocationsResponse)

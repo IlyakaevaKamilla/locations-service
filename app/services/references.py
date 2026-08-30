@@ -18,11 +18,11 @@ from app.db.database import get_async_session
 from app.db.models import Level, LocationLevel, LocationStyle, Style
 from app.schemas.admin import AdminLevelRead, AdminStyleRead
 from app.schemas.references import ReferenceListResponse, ReferenceLocationsResponse
-from app.types import JunctionT, ModelT, PossibleAdminSchemas
+from app.types import JunctionT, ModelT, AdminSchemaT
 
 
 class ReferenceService:
-    _RESPONSE_MAP: ClassVar[dict[type[ModelT], type[PossibleAdminSchemas]]] = {
+    _RESPONSE_MAP: ClassVar[dict[type[ModelT], type[AdminSchemaT]]] = {
         Style: AdminStyleRead,
         Level: AdminLevelRead,
     }
@@ -66,24 +66,24 @@ class ReferenceService:
         self,
         *,
         name: str | None = None,
-        id: int | list[int] | None = None,
+        style_id: int | list[int] | None = None,
         limit: int = 20,
         offset: int = 0,
     ):
         return await self._list_references(
-            model=Style, name=name, id=id, limit=limit, offset=offset
+            model=Style, name=name, item_id=style_id, limit=limit, offset=offset
         )
 
     async def list_levels(
         self,
         *,
         name: str | None = None,
-        id: int | list[int] | None = None,
+        list_id: int | list[int] | None = None,
         limit: int = 20,
         offset: int = 0,
     ):
         return await self._list_references(
-            model=Level, name=name, id=id, limit=limit, offset=offset
+            model=Level, name=name, item_id=list_id, limit=limit, offset=offset
         )
 
     async def _list_references(
@@ -91,7 +91,7 @@ class ReferenceService:
         model: type[ModelT],
         *,
         name: str | None = None,
-        id: int | list[int] | None = None,
+        item_id: int | list[int] | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> ReferenceListResponse:
@@ -99,7 +99,7 @@ class ReferenceService:
             self.session,
             model=model,
             name=name,
-            id=id,
+            id=item_id,
             limit=limit,
             offset=offset,
         )
@@ -121,7 +121,7 @@ class ReferenceService:
 
     async def _create_reference(
         self, model: type[ModelT], name: str
-    ) -> PossibleAdminSchemas:
+    ) -> AdminSchemaT:
         await self._ensure_name_unique(model=model, name=name)
         item = await admin_create_reference(self.session, model=model, name=name)
         return self._to_response(model=model, item=item)
@@ -134,7 +134,7 @@ class ReferenceService:
 
     async def _update_reference(
         self, model: type[ModelT], item_id: int, name: str
-    ) -> PossibleAdminSchemas:
+    ) -> AdminSchemaT:
         await self._ensure_name_unique(model=model, name=name, exclude_id=item_id)
         updated_item = await admin_update_reference(
             self.session, model=model, item_id=item_id, name=name

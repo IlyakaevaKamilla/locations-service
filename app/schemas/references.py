@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.locations import LocationRead
+from app.schemas.mixins import PaginationMixin
 
 
 class ReferenceBase(BaseModel):
@@ -15,15 +16,10 @@ class ReferenceRead(ReferenceBase):
     id: int
 
 
-class ReferenceListResponse(BaseModel):
+class ReferenceListResponse(PaginationMixin, BaseModel):
     items: list[ReferenceRead]
-    total: int
-    limit: int
-    offset: int
 
 
-class ReferenceLocationsResponse(ReferenceRead):
+class ReferenceLocationsResponse(PaginationMixin, ReferenceRead):
     locations: list[LocationRead]
-    total: int
-    limit: int
-    offset: int
+
