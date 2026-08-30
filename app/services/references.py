@@ -18,7 +18,7 @@ from app.db.database import get_async_session
 from app.db.models import Level, LocationLevel, LocationStyle, Style
 from app.schemas.admin import AdminLevelRead, AdminStyleRead
 from app.schemas.references import ReferenceListResponse, ReferenceLocationsResponse
-from app.types import JunctionT, ModelT, AdminSchemaT
+from app.types import AdminSchemaT, JunctionT, ModelT
 
 
 class ReferenceService:
@@ -119,9 +119,7 @@ class ReferenceService:
     ) -> AdminLevelRead:
         return await self._create_reference(model=Level, name=name)
 
-    async def _create_reference(
-        self, model: type[ModelT], name: str
-    ) -> AdminSchemaT:
+    async def _create_reference(self, model: type[ModelT], name: str) -> AdminSchemaT:
         await self._ensure_name_unique(model=model, name=name)
         item = await admin_create_reference(self.session, model=model, name=name)
         return self._to_response(model=model, item=item)

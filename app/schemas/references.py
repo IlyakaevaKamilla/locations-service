@@ -22,4 +22,3 @@ class ReferenceListResponse(PaginationMixin, BaseModel):
 
 class ReferenceLocationsResponse(PaginationMixin, ReferenceRead):
     locations: list[LocationRead]
-
