@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import Location
+from app.db.models import Location, LocationLevel, LocationStyle
 from app.types import JunctionT, ModelT
 
 
@@ -118,8 +118,8 @@ async def list_locations_by_reference(
         select(Location)
         .options(
             selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel),
-            selectinload(Location.levels_rel),
+            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
+            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
         )
         .join(junction_model, junction_model.location_id == Location.id)
         .where(reference_field == item_id)

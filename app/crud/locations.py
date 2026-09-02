@@ -186,8 +186,8 @@ async def get_location_by_id(
         select(Location)
         .options(
             selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel),
-            selectinload(Location.levels_rel),
+            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
+            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
         )
         .where(Location.id == location_id)
     )
@@ -202,8 +202,8 @@ async def get_location_by_slug(session: AsyncSession, slug: str) -> Location | N
         select(Location)
         .options(
             selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel),
-            selectinload(Location.levels_rel),
+            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
+            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
         )
         .where(Location.slug == slug)
     )
@@ -228,8 +228,8 @@ async def list_locations(
     base_statement = apply_location_filters(
         select(Location).options(
             selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel),
-            selectinload(Location.levels_rel),
+            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
+            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
         ),
         search=search,
         region=region,
@@ -269,8 +269,8 @@ async def list_favorite_locations(
         select(Location)
         .options(
             selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel),
-            selectinload(Location.levels_rel),
+            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
+            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
         )
         .join(FavoriteLocation, FavoriteLocation.location_id == Location.id)
         .where(FavoriteLocation.user_id == user_id)
