@@ -105,10 +105,14 @@ async def list_locations_by_reference(
     junction_model: type[JunctionT],
     reference_field: Any,
     *,
+    is_active: bool | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[Sequence[Location], int]:
-    """Return a paginated list of active locations linked to a reference row."""
+    """Return a paginated list of locations linked to a reference row.
+
+    Filter by is_active when provided; otherwise returns both active and inactive.
+    """
 
     base_statement = (
         select(Location)
@@ -118,8 +122,10 @@ async def list_locations_by_reference(
             selectinload(Location.levels_rel),
         )
         .join(junction_model, junction_model.location_id == Location.id)
-        .where(reference_field == item_id, Location.is_active.is_(True))
+        .where(reference_field == item_id)
     )
+    if is_active is not None:
+        base_statement = base_statement.where(Location.is_active.is_(is_active))
 
     total_statement = select(func.count()).select_from(base_statement.subquery())
     total = await session.scalar(total_statement)

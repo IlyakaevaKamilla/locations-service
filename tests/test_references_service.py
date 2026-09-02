@@ -26,11 +26,11 @@ from app.routes.admin import (
     create_style,
     delete_level_by_id,
     delete_style_by_id,
+    read_level_locations,
+    read_style_locations,
 )
 from app.routes.references import (
-    read_level_locations,
     read_levels,
-    read_style_locations,
     read_styles,
     router,
 )
@@ -305,6 +305,56 @@ def test_list_locations_by_reference_joins_level_junction(monkeypatch):
     assert total == 1
 
 
+def test_list_locations_by_reference_filters_by_is_active(monkeypatch):
+    session = FakeSession()
+    location = make_location(id=1)
+    captured = {}
+
+    async def fake_scalar(statement):
+        return 1
+
+    async def fake_execute(statement):
+        captured["sql"] = str(statement.compile(dialect=None))
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [location]))
+
+    monkeypatch.setattr(session, "scalar", fake_scalar)
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    locations, total = asyncio.run(
+        list_locations_by_reference(
+            session, 1, LocationStyle, LocationStyle.style_id, is_active=True
+        )
+    )
+
+    assert locations == [location]
+    assert total == 1
+    assert "locations.is_active IS true" in captured["sql"]
+
+
+def test_list_locations_by_reference_without_is_active_returns_all(monkeypatch):
+    session = FakeSession()
+    location = make_location(id=1)
+    captured = {}
+
+    async def fake_scalar(statement):
+        return 1
+
+    async def fake_execute(statement):
+        captured["sql"] = str(statement.compile(dialect=None))
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [location]))
+
+    monkeypatch.setattr(session, "scalar", fake_scalar)
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    locations, total = asyncio.run(
+        list_locations_by_reference(session, 1, LocationStyle, LocationStyle.style_id)
+    )
+
+    assert locations == [location]
+    assert total == 1
+    assert "IS true" not in captured["sql"]
+
+
 def test_list_styles_returns_reference_list_response(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
@@ -574,6 +624,7 @@ def test_list_reference_locations_returns_id_name_and_locations(monkeypatch):
         assert reference_field is LocationStyle.style_id
         assert kwargs["limit"] == 20
         assert kwargs["offset"] == 0
+        assert kwargs["is_active"] is True
         return [location], 1
 
     monkeypatch.setattr(
@@ -584,7 +635,7 @@ def test_list_reference_locations_returns_id_name_and_locations(monkeypatch):
         fake_list_locations_by_reference,
     )
 
-    result = asyncio.run(service.list_style_locations(1))
+    result = asyncio.run(service.list_style_locations(1, is_active=True))
 
     assert result.id == 1
     assert result.name == "mountain"
@@ -653,12 +704,14 @@ def test_read_style_locations_passes_params_to_service():
         read_style_locations(
             style_id=1,
             service=service,
+            is_active=True,
             limit=10,
             offset=5,
         )
     )
 
     assert service.kwargs["style_id"] == 1
+    assert service.kwargs["is_active"] is True
     assert service.kwargs["limit"] == 10
     assert service.kwargs["offset"] == 5
 
@@ -676,12 +729,14 @@ def test_read_level_locations_passes_params_to_service():
         read_level_locations(
             level_id=2,
             service=service,
+            is_active=False,
             limit=10,
             offset=5,
         )
     )
 
     assert service.kwargs["level_id"] == 2
+    assert service.kwargs["is_active"] is False
     assert service.kwargs["limit"] == 10
     assert service.kwargs["offset"] == 5
 
@@ -751,12 +806,12 @@ def test_references_openapi_exposes_public_and_admin_paths():
 
     assert "/api/references/styles" in paths
     assert "/api/references/levels" in paths
-    assert "/api/references/styles/{style_id}/locations" in paths
-    assert "/api/references/levels/{level_id}/locations" in paths
     assert "/api/admin/references/styles" in paths
     assert "/api/admin/references/levels" in paths
     assert "/api/admin/references/styles/{style_id}" in paths
     assert "/api/admin/references/levels/{level_id}" in paths
+    assert "/api/admin/references/styles/{style_id}/locations" in paths
+    assert "/api/admin/references/levels/{level_id}/locations" in paths
 
 
 def test_references_search_requires_min_three_characters():

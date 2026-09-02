@@ -21,6 +21,7 @@ from app.schemas.admin import (
     AdminStyleRead,
 )
 from app.schemas.locations import LocationFilterOptions
+from app.schemas.references import ReferenceLocationsResponse
 
 router = APIRouter(prefix="/api/admin/locations", tags=["Admin Locations"])
 
@@ -82,6 +83,38 @@ async def delete_location_by_id(service: LocationServiceDep, location_id: int):
 admin_references_router = APIRouter(
     prefix="/api/admin/references", tags=["Admin References"]
 )
+
+
+@admin_references_router.get(
+    "/styles/{style_id}/locations", response_model=ReferenceLocationsResponse
+)
+async def read_style_locations(
+    style_id: int,
+    service: ReferenceServiceDep,
+    is_active: bool | None = None,
+    limit: LimitQuery = 20,
+    offset: OffsetQuery = 0,
+):
+    """Return a paginated list of locations linked to a style, optionally filtered by is_active."""
+    return await service.list_style_locations(
+        style_id, is_active=is_active, limit=limit, offset=offset
+    )
+
+
+@admin_references_router.get(
+    "/levels/{level_id}/locations", response_model=ReferenceLocationsResponse
+)
+async def read_level_locations(
+    level_id: int,
+    service: ReferenceServiceDep,
+    is_active: bool | None = None,
+    limit: LimitQuery = 20,
+    offset: OffsetQuery = 0,
+):
+    """Return a paginated list of locations linked to a level, optionally filtered by is_active."""
+    return await service.list_level_locations(
+        level_id, is_active=is_active, limit=limit, offset=offset
+    )
 
 
 @admin_references_router.post("/styles", status_code=status.HTTP_201_CREATED)

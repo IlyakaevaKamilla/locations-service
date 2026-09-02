@@ -148,6 +148,7 @@ class ReferenceService:
         self,
         style_id: int,
         *,
+        is_active: bool | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> ReferenceLocationsResponse:
@@ -156,6 +157,7 @@ class ReferenceService:
             item_id=style_id,
             junction_model=LocationStyle,
             reference_field=LocationStyle.style_id,
+            is_active=is_active,
             limit=limit,
             offset=offset,
         )
@@ -164,6 +166,7 @@ class ReferenceService:
         self,
         level_id: int,
         *,
+        is_active: bool | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> ReferenceLocationsResponse:
@@ -172,6 +175,7 @@ class ReferenceService:
             item_id=level_id,
             junction_model=LocationLevel,
             reference_field=LocationLevel.level_id,
+            is_active=is_active,
             limit=limit,
             offset=offset,
         )
@@ -183,6 +187,7 @@ class ReferenceService:
         junction_model: type[JunctionT],
         reference_field: Any,
         *,
+        is_active: bool | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> ReferenceLocationsResponse:
@@ -192,6 +197,7 @@ class ReferenceService:
             item_id=item_id,
             junction_model=junction_model,
             reference_field=reference_field,
+            is_active=is_active,
             limit=limit,
             offset=offset,
         )
