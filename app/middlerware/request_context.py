@@ -3,7 +3,8 @@ import json
 import logging
 import re
 
-from fastapi import HTTPException, Request, status
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("location_service")
 
@@ -75,9 +76,9 @@ async def user_context_middleware(request: Request, call_next):
                 logger.debug("No user context found in request")
         except ValueError as e:
             logger.warning(f"Invalid X-User-Claims header: {e}")
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unauthorized",
+                content={"detail": "Unauthorized"},
             )
 
     return await call_next(request)
