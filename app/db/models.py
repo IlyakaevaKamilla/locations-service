@@ -109,6 +109,11 @@ class Location(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 
     favorites: Mapped[list[FavoriteLocation]] = relationship(
         back_populates="location", cascade="all, delete-orphan"
