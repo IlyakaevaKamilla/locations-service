@@ -7,10 +7,12 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -83,19 +85,58 @@ class LocationLevel(LocationChildMixin, Base):
     level: Mapped[Level] = relationship(back_populates="location_levels")
 
 
+class Country(ReferenceMixin, Base):
+    __tablename__ = "countries"
+
+    regions: Mapped[list["Region"]] = relationship(back_populates="country")
+
+
+class Region(Base):
+    __tablename__ = "regions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    country_id: Mapped[int] = mapped_column(
+        ForeignKey("countries.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    country: Mapped[Country] = relationship(back_populates="regions")
+    cities: Mapped[list["City"]] = relationship(back_populates="region")
+
+    __table_args__ = (
+        UniqueConstraint("id", "country_id", name="uq_region_id_country"),
+        UniqueConstraint("name", "country_id", name="uq_region_name_country"),
+    )
+
+
+class City(Base):
+    __tablename__ = "cities"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(150))
+    region_id: Mapped[int] = mapped_column(
+        ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    region: Mapped[Region] = relationship(back_populates="cities")
+    locations: Mapped[list["Location"]] = relationship(back_populates="city_rel", foreign_keys="Location.city_id")
+
+    __table_args__ = (
+        UniqueConstraint("id", "region_id", name="uq_city_id_region"),
+        UniqueConstraint("name", "region_id", name="uq_city_name_region"),
+    )
+
+
 class Location(Base):
     __tablename__ = "locations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     slug: Mapped[str] = mapped_column(String(150), unique=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
-    region: Mapped[str] = mapped_column(String(255), index=True)
-    city: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    country: Mapped[str] = mapped_column(
-        String(120),
-        nullable=False,
-        server_default=text("'Russia'"),
+    city_id: Mapped[int] = mapped_column(
+        ForeignKey("cities.id"), nullable=False, index=True
     )
+    region_id: Mapped[int] = mapped_column(nullable=False, index=True)
+    country_id: Mapped[int] = mapped_column(nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -122,6 +163,9 @@ class Location(Base):
     levels_rel: Mapped[list[LocationLevel]] = relationship(
         back_populates="location", cascade="all, delete-orphan"
     )
+    city_rel: Mapped[City] = relationship(
+        back_populates="locations", foreign_keys="Location.city_id"
+    )
 
     @property
     def activity_ids(self) -> list[int]:
@@ -135,9 +179,30 @@ class Location(Base):
     def levels(self) -> list[str]:
         return [level.level.name for level in self.levels_rel]
 
+    @property
+    def city(self) -> str:
+        return self.city_rel.name if self.city_rel else ""
+
+    @property
+    def region(self) -> str:
+        return self.city_rel.region.name if self.city_rel and self.city_rel.region else ""
+
+    @property
+    def country(self) -> str:
+        return (
+            self.city_rel.region.country.name
+            if self.city_rel and self.city_rel.region and self.city_rel.region.country
+            else ""
+        )
+
     __table_args__ = (
-        Index("ix_locations_country_region_city", "country", "region", "city"),
-        Index("ix_locations_region_lower", func.lower(region)),
-        Index("ix_locations_city_lower", func.lower(city)),
-        Index("ix_locations_country_lower", func.lower(country)),
+        ForeignKeyConstraint(
+            ["city_id", "region_id"], ["cities.id", "cities.region_id"],
+            onupdate="CASCADE", name="fk_locations_valid_city_region",
+        ),
+        ForeignKeyConstraint(
+            ["region_id", "country_id"], ["regions.id", "regions.country_id"],
+            onupdate="CASCADE", name="fk_locations_valid_region_country",
+        ),
+        Index("ix_locations_country_id", "country_id"),
     )

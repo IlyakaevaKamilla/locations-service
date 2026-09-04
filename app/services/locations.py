@@ -159,7 +159,13 @@ class LocationService:
         self, location_in: AdminLocationCreate
     ) -> AdminLocationRead:
         await self._ensure_relations_exist(location_in)
-        return await admin_create_location(self.session, location_in)
+        location = await admin_create_location(self.session, location_in)
+        if location is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"City with id {location_in.city_id} not found",
+            )
+        return location
 
     async def admin_delete_location(self, location_id: int) -> None:
         deleted = await admin_delete_location_by_id(self.session, location_id)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.locations import LocationBase
 from app.schemas.mixins import PaginationMixin
@@ -17,6 +17,9 @@ class AdminLocationRead(LocationBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    city: str = Field(min_length=1, max_length=150)
+    region: str = Field(min_length=1, max_length=150)
+    country: str = Field(min_length=1, max_length=150)
     created_at: datetime
     updated_at: datetime
 
