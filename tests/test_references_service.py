@@ -212,7 +212,7 @@ def test_admin_create_reference_commits_and_refreshes(monkeypatch):
 
     monkeypatch.setattr(session, "refresh", fake_refresh)
 
-    result = asyncio.run(admin_create_reference(session, Style, "mountain"))
+    result = asyncio.run(admin_create_reference(session, Style, name="mountain"))
 
     assert result is not None
     assert session.commits == 1

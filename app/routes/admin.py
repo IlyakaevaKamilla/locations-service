@@ -12,16 +12,17 @@ from app.routes.query_params import (
     _split_query_values,
 )
 from app.schemas.admin import (
-    AdminLevelCreate,
-    AdminLevelRead,
+    AdminCityCreate,
+    AdminCityUpdate,
     AdminLocationCreate,
     AdminLocationListResponse,
     AdminLocationRead,
-    AdminStyleCreate,
-    AdminStyleRead,
+    AdminReferenceCreate,
+    AdminRegionCreate,
+    AdminRegionUpdate,
 )
 from app.schemas.locations import LocationFilterOptions
-from app.schemas.references import ReferenceLocationsResponse
+from app.schemas.references import ReferenceLocationsResponse, ReferenceRead
 
 router = APIRouter(prefix="/api/admin/locations", tags=["Admin Locations"])
 
@@ -119,16 +120,43 @@ async def read_level_locations(
 
 @admin_references_router.post("/styles", status_code=status.HTTP_201_CREATED)
 async def create_style(
-    service: ReferenceServiceDep, style_data: AdminStyleCreate
-) -> AdminStyleRead:
+    service: ReferenceServiceDep, style_data: AdminReferenceCreate
+) -> ReferenceRead:
     return await service.admin_create_style(style_data.name)
 
 
 @admin_references_router.post("/levels", status_code=status.HTTP_201_CREATED)
 async def create_levels(
-    service: ReferenceServiceDep, level_data: AdminLevelCreate
-) -> AdminLevelRead:
+    service: ReferenceServiceDep, level_data: AdminReferenceCreate
+) -> ReferenceRead:
     return await service.admin_create_level(level_data.name)
+
+
+@admin_references_router.post("/countries", status_code=status.HTTP_201_CREATED)
+async def create_countries(
+    service: ReferenceServiceDep, country_data: AdminReferenceCreate
+) -> ReferenceRead:
+    return await service.admin_create_country(name=country_data.name)
+
+
+@admin_references_router.post("/regions", status_code=status.HTTP_201_CREATED)
+async def create_regions(
+    service: ReferenceServiceDep, region_data: AdminRegionCreate
+) -> ReferenceRead:
+    """Region cannot be created without country_id."""
+    return await service.admin_create_region(
+        name=region_data.name, country_id=region_data.country_id
+    )
+
+
+@admin_references_router.post("/cities", status_code=status.HTTP_201_CREATED)
+async def create_cities(
+    service: ReferenceServiceDep, city_data: AdminCityCreate
+) -> ReferenceRead:
+    """City cannot be created without region_id."""
+    return await service.admin_create_city(
+        name=city_data.name, region_id=city_data.region_id
+    )
 
 
 @admin_references_router.delete(
@@ -145,12 +173,35 @@ async def delete_level_by_id(service: ReferenceServiceDep, level_id: int):
     await service.admin_delete_level(level_id)
 
 
+@admin_references_router.delete(
+    "/countries/{country_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_country_by_id(service: ReferenceServiceDep, country_id: int):
+    """Deleting country would delete all regions and cities linked to it."""
+    await service.admin_delete_country(country_id)
+
+
+@admin_references_router.delete(
+    "/regions/{region_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_region_by_id(service: ReferenceServiceDep, region_id: int):
+    """Deleting region would delete all cities linked to it."""
+    await service.admin_delete_region(region_id)
+
+
+@admin_references_router.delete(
+    "/cities/{city_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_city_by_id(service: ReferenceServiceDep, city_id: int):
+    await service.admin_delete_city(city_id)
+
+
 @admin_references_router.patch("/styles/{style_id}", status_code=status.HTTP_200_OK)
 async def update_style_by_id(
     service: ReferenceServiceDep,
     style_id: int,
-    style_data: AdminStyleCreate,
-) -> AdminStyleRead:
+    style_data: AdminReferenceCreate,
+) -> ReferenceRead:
     return await service.admin_update_style(item_id=style_id, name=style_data.name)
 
 
@@ -158,6 +209,43 @@ async def update_style_by_id(
 async def update_level_by_id(
     service: ReferenceServiceDep,
     level_id: int,
-    level_data: AdminLevelCreate,
-) -> AdminLevelRead:
+    level_data: AdminReferenceCreate,
+) -> ReferenceRead:
     return await service.admin_update_level(item_id=level_id, name=level_data.name)
+
+
+@admin_references_router.patch(
+    "/countries/{country_id}", status_code=status.HTTP_200_OK
+)
+async def update_country_by_id(
+    service: ReferenceServiceDep,
+    country_id: int,
+    country_data: AdminReferenceCreate,
+) -> ReferenceRead:
+    return await service.admin_update_country(
+        item_id=country_id, name=country_data.name
+    )
+
+
+@admin_references_router.patch("/regions/{region_id}", status_code=status.HTTP_200_OK)
+async def update_region_by_id(
+    service: ReferenceServiceDep,
+    region_id: int,
+    region_data: AdminRegionUpdate,
+) -> ReferenceRead:
+    """country_id is optional parameter."""
+    return await service.admin_update_region(
+        item_id=region_id, name=region_data.name, country_id=region_data.country_id
+    )
+
+
+@admin_references_router.patch("/cities/{city_id}", status_code=status.HTTP_200_OK)
+async def update_city_by_id(
+    service: ReferenceServiceDep,
+    city_id: int,
+    city_data: AdminCityUpdate,
+) -> ReferenceRead:
+    """region_id is optional parameter."""
+    return await service.admin_update_city(
+        item_id=city_id, name=city_data.name, region_id=city_data.region_id
+    )

@@ -153,6 +153,18 @@ def _apply_geo_filters(
     return statement
 
 
+def _load_location_options():
+    """Load relationships for location."""
+    return (
+        selectinload(Location.activities_rel),
+        selectinload(Location.styles_rel).selectinload(LocationStyle.style),
+        selectinload(Location.levels_rel).selectinload(LocationLevel.level),
+        selectinload(Location.city_rel)
+        .selectinload(City.region)
+        .selectinload(Region.country),
+    )
+
+
 def apply_location_filters(
     statement: Select,
     *,
@@ -207,14 +219,7 @@ async def get_location_by_id(
 ) -> Location | None:
     statement = (
         select(Location)
-        .options(
-            selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
-            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
-            selectinload(Location.city_rel)
-            .selectinload(City.region)
-            .selectinload(Region.country),
-        )
+        .options(*_load_location_options())
         .where(Location.id == location_id)
     )
     if only_active:
@@ -225,16 +230,7 @@ async def get_location_by_id(
 
 async def get_location_by_slug(session: AsyncSession, slug: str) -> Location | None:
     result = await session.execute(
-        select(Location)
-        .options(
-            selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
-            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
-            selectinload(Location.city_rel)
-            .selectinload(City.region)
-            .selectinload(Region.country),
-        )
-        .where(Location.slug == slug)
+        select(Location).options(*_load_location_options()).where(Location.slug == slug)
     )
     return result.scalar_one_or_none()
 
@@ -255,14 +251,7 @@ async def list_locations(
 ) -> tuple[Sequence[Location], int]:
     """Return a paginated filtered location list and the total matching count."""
     base_statement = apply_location_filters(
-        select(Location).options(
-            selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
-            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
-            selectinload(Location.city_rel)
-            .selectinload(City.region)
-            .selectinload(Region.country),
-        ),
+        select(Location).options(*_load_location_options()),
         search=search,
         region=region,
         city=city,
@@ -390,14 +379,7 @@ async def admin_create_location(
 
     result = await session.execute(
         select(Location)
-        .options(
-            selectinload(Location.city_rel)
-            .selectinload(City.region)
-            .selectinload(Region.country),
-            selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
-            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
-        )
+        .options(*_load_location_options())
         .where(Location.id == new_location.id)
     )
     return result.scalar_one()

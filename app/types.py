@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from typing import TypeVar
 
-from app.db.models import Level, LocationActivity, LocationLevel, LocationStyle, Style
-from app.schemas.admin import AdminLevelRead, AdminStyleRead
+from app.db.models import (
+    City,
+    Country,
+    Level,
+    LocationActivity,
+    LocationLevel,
+    LocationStyle,
+    Region,
+    Style,
+)
 
-ModelT = TypeVar("ModelT", Style, Level)
+ModelT = TypeVar("ModelT", Style, Level, City, Region, Country)
 JunctionT = TypeVar("JunctionT", LocationLevel, LocationStyle, LocationActivity)
-AdminSchemaT = TypeVar("AdminSchemaT", AdminLevelRead, AdminStyleRead)

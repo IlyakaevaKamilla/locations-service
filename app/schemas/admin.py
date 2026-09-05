@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.locations import LocationBase
 from app.schemas.mixins import PaginationMixin
-from app.schemas.references import ReferenceBase, ReferenceRead
+from app.schemas.references import ReferenceBase
 
 
 class AdminLocationBase(LocationBase):
@@ -36,17 +36,17 @@ class AdminReferenceCreate(ReferenceBase):
     pass
 
 
-class AdminStyleRead(ReferenceRead):
-    pass
+class AdminRegionCreate(ReferenceBase):
+    country_id: int
 
 
-class AdminLevelRead(ReferenceRead):
-    pass
+class AdminCityCreate(ReferenceBase):
+    region_id: int
 
 
-class AdminStyleCreate(AdminReferenceCreate):
-    pass
+class AdminRegionUpdate(ReferenceBase):
+    country_id: int | None = None
 
 
-class AdminLevelCreate(AdminReferenceCreate):
-    pass
+class AdminCityUpdate(ReferenceBase):
+    region_id: int | None = None
