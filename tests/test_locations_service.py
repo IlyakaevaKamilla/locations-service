@@ -56,9 +56,6 @@ def make_location(**overrides):
     region = overrides.pop(
         "region", SimpleNamespace(name="Краснодарский край", country=country)
     )
-    city = overrides.pop(
-        "city", SimpleNamespace(name="Сочи", region=region, country=country)
-    )
     city_rel = overrides.pop(
         "city_rel", SimpleNamespace(name="Сочи", region=region, country=country)
     )
@@ -350,7 +347,6 @@ def test_apply_location_filters_uses_case_insensitive_filters_joins_geo():
     assert "countries.id = regions.country_id" in compiled
     assert "lower(regions.name) IN" in compiled
     assert "cities.id = locations.city_id" in compiled
-    # The city table is part of the join chain; there is no city filter here.
     assert "location_activities" in compiled
     assert "location_styles" in compiled
     assert "styles" in compiled
@@ -510,7 +506,6 @@ def test_admin_create_location_links_styles_and_levels(monkeypatch):
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [style]))
         if "levels" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [level]))
-        # The re-select after commit: `locations.id == :id_1`
         if "locations.id IS NULL" in compiled:
             return SimpleNamespace(scalar_one=lambda: new_location)
         raise AssertionError(f"unexpected statement: {compiled}")
@@ -555,10 +550,9 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
         if "cities.id = %(" in compiled:
             return SimpleNamespace(scalar_one_or_none=lambda: city)
         if "styles" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
         if "levels" in compiled:
-            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
-        # `locations.id =` is the re-select after commit.
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
         if "locations.id IS NULL" in compiled:
             return SimpleNamespace(scalar_one=lambda: new_location)
         raise AssertionError(f"unexpected statement: {compiled}")

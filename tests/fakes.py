@@ -40,18 +40,10 @@ def make_reference(model, **overrides):
 
 
 def make_location(**overrides):
-    """Build a location-like object with all fields used by LocationRead.
-
-    Includes flat city/region/country strings (Pydantic from_attributes
-    reads them off the object directly, like the Location model properties)
-    plus the nested city_rel chain used by the model's geo properties.
-    """
+    """Build a location-like object with all fields used by LocationRead."""
     country = overrides.pop("country", SimpleNamespace(name="Russia"))
     region = overrides.pop(
         "region", SimpleNamespace(name="Краснодарский край", country=country)
-    )
-    city = overrides.pop(
-        "city", SimpleNamespace(name="Сочи", region=region, country=country)
     )
     city_rel = overrides.pop(
         "city_rel", SimpleNamespace(name="Сочи", region=region, country=country)

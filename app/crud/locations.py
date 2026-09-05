@@ -8,17 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import (
+    City,
+    Country,
     Level,
     Location,
     LocationActivity,
     LocationLevel,
     LocationStyle,
-    Style,
-    City,
     Region,
-    Country,
+    Style,
 )
-from app.schemas.admin import AdminLocationCreate, AdminLocationRead
+from app.schemas.admin import AdminLocationCreate
 from app.types import JunctionT
 
 StrFilter = str | Sequence[str]
@@ -167,11 +167,7 @@ def apply_location_filters(
 ):
     """Apply search and location filters, using OR inside fields and AND between fields."""
     statement = _apply_geo_filters(
-        statement=statement,
-        search=search,
-        region=region,
-        city=city,
-        country=country
+        statement=statement, search=search, region=region, city=city, country=country
     )
     if search:
         pattern = f"%{search.strip()}%"
@@ -215,9 +211,9 @@ async def get_location_by_id(
             selectinload(Location.activities_rel),
             selectinload(Location.styles_rel).selectinload(LocationStyle.style),
             selectinload(Location.levels_rel).selectinload(LocationLevel.level),
-            selectinload(Location.city_rel),
-            selectinload(City.region),
-            selectinload(Region.country)
+            selectinload(Location.city_rel)
+            .selectinload(City.region)
+            .selectinload(Region.country),
         )
         .where(Location.id == location_id)
     )
@@ -234,9 +230,9 @@ async def get_location_by_slug(session: AsyncSession, slug: str) -> Location | N
             selectinload(Location.activities_rel),
             selectinload(Location.styles_rel).selectinload(LocationStyle.style),
             selectinload(Location.levels_rel).selectinload(LocationLevel.level),
-            selectinload(Location.city_rel),
-            selectinload(City.region),
-            selectinload(Region.country)
+            selectinload(Location.city_rel)
+            .selectinload(City.region)
+            .selectinload(Region.country),
         )
         .where(Location.slug == slug)
     )
@@ -263,9 +259,9 @@ async def list_locations(
             selectinload(Location.activities_rel),
             selectinload(Location.styles_rel).selectinload(LocationStyle.style),
             selectinload(Location.levels_rel).selectinload(LocationLevel.level),
-            selectinload(Location.city_rel),
-            selectinload(City.region),
-            selectinload(Region.country)
+            selectinload(Location.city_rel)
+            .selectinload(City.region)
+            .selectinload(Region.country),
         ),
         search=search,
         region=region,

@@ -38,8 +38,13 @@ class LocationChildMixin:
 class ReferenceMixin:
     """Shared columns for normalized tables with name."""
 
+    _name_unique: bool = False
+
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(150), unique=True)
+
+    @declared_attr
+    def name(cls) -> Mapped[str]:
+        return mapped_column(String(150), unique=cls._name_unique)
 
 
 class LocationActivity(LocationChildMixin, Base):
@@ -51,6 +56,7 @@ class LocationActivity(LocationChildMixin, Base):
 
 class Style(ReferenceMixin, Base):
     __tablename__ = "styles"
+    _name_unique = True
 
     location_styles: Mapped[list[LocationStyle]] = relationship(back_populates="style")
 
@@ -69,6 +75,7 @@ class LocationStyle(LocationChildMixin, Base):
 
 class Level(ReferenceMixin, Base):
     __tablename__ = "levels"
+    _name_unique = True
 
     location_levels: Mapped[list[LocationLevel]] = relationship(back_populates="level")
 
@@ -87,20 +94,20 @@ class LocationLevel(LocationChildMixin, Base):
 
 class Country(ReferenceMixin, Base):
     __tablename__ = "countries"
+    _name_unique = True
 
-    regions: Mapped[list["Region"]] = relationship(back_populates="country")
+    regions: Mapped[list[Region]] = relationship(back_populates="country")
 
 
-class Region(Base):
+class Region(ReferenceMixin, Base):
     __tablename__ = "regions"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(150), nullable=False)
+
     country_id: Mapped[int] = mapped_column(
         ForeignKey("countries.id", ondelete="CASCADE"), index=True, nullable=False
     )
 
     country: Mapped[Country] = relationship(back_populates="regions")
-    cities: Mapped[list["City"]] = relationship(back_populates="region")
+    cities: Mapped[list[City]] = relationship(back_populates="region")
 
     __table_args__ = (
         UniqueConstraint("id", "country_id", name="uq_region_id_country"),
@@ -108,17 +115,17 @@ class Region(Base):
     )
 
 
-class City(Base):
+class City(ReferenceMixin, Base):
     __tablename__ = "cities"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(150))
     region_id: Mapped[int] = mapped_column(
         ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=False
     )
 
     region: Mapped[Region] = relationship(back_populates="cities")
-    locations: Mapped[list["Location"]] = relationship(back_populates="city_rel", foreign_keys="Location.city_id")
+    locations: Mapped[list[Location]] = relationship(
+        back_populates="city_rel", foreign_keys="Location.city_id"
+    )
 
     __table_args__ = (
         UniqueConstraint("id", "region_id", name="uq_city_id_region"),
@@ -185,7 +192,9 @@ class Location(Base):
 
     @property
     def region(self) -> str:
-        return self.city_rel.region.name if self.city_rel and self.city_rel.region else ""
+        return (
+            self.city_rel.region.name if self.city_rel and self.city_rel.region else ""
+        )
 
     @property
     def country(self) -> str:
@@ -197,12 +206,16 @@ class Location(Base):
 
     __table_args__ = (
         ForeignKeyConstraint(
-            ["city_id", "region_id"], ["cities.id", "cities.region_id"],
-            onupdate="CASCADE", name="fk_locations_valid_city_region",
+            ["city_id", "region_id"],
+            ["cities.id", "cities.region_id"],
+            onupdate="CASCADE",
+            name="fk_locations_valid_city_region",
         ),
         ForeignKeyConstraint(
-            ["region_id", "country_id"], ["regions.id", "regions.country_id"],
-            onupdate="CASCADE", name="fk_locations_valid_region_country",
+            ["region_id", "country_id"],
+            ["regions.id", "regions.country_id"],
+            onupdate="CASCADE",
+            name="fk_locations_valid_region_country",
         ),
         Index("ix_locations_country_id", "country_id"),
     )
