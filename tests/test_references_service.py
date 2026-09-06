@@ -987,6 +987,111 @@ async def test_delete_reference_raises_404_when_missing(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_delete_city_raises_409_when_location_linked(monkeypatch):
+    session = FakeSession()
+    service = ReferenceService(session)
+
+    async def fake_count_locations_by_city_ids(db, city_ids):
+        assert db is session
+        assert city_ids == [1]
+        return 1
+
+    monkeypatch.setattr(
+        "app.services.references.count_locations_by_city_ids",
+        fake_count_locations_by_city_ids,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.admin_delete_city(1)
+
+    assert exc_info.value.status_code == 409
+    assert "linked to locations" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_delete_region_raises_409_when_city_linked_to_location(monkeypatch):
+    session = FakeSession()
+    service = ReferenceService(session)
+    region = make_reference(
+        Region,
+        id=1,
+        cities=[make_reference(City, id=1), make_reference(City, id=2)],
+    )
+
+    async def fake_get_reference_by_id(db, model, item_id):
+        assert db is session
+        assert model is Region
+        assert item_id == 1
+        return region
+
+    async def fake_count_locations_by_city_ids(db, city_ids):
+        assert db is session
+        assert city_ids == [1, 2]
+        return 2
+
+    monkeypatch.setattr(
+        "app.services.references.get_reference_by_id", fake_get_reference_by_id
+    )
+    monkeypatch.setattr(
+        "app.services.references.count_locations_by_city_ids",
+        fake_count_locations_by_city_ids,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.admin_delete_region(1)
+
+    assert exc_info.value.status_code == 409
+    assert "linked to locations" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_delete_country_raises_409_when_city_linked_to_location(monkeypatch):
+    session = FakeSession()
+    service = ReferenceService(session)
+    country = make_reference(
+        Country,
+        id=1,
+        regions=[
+            make_reference(
+                Region,
+                id=1,
+                cities=[make_reference(City, id=1)],
+            ),
+            make_reference(
+                Region,
+                id=2,
+                cities=[make_reference(City, id=2), make_reference(City, id=3)],
+            ),
+        ],
+    )
+
+    async def fake_get_reference_by_id(db, model, item_id):
+        assert db is session
+        assert model is Country
+        assert item_id == 1
+        return country
+
+    async def fake_count_locations_by_city_ids(db, city_ids):
+        assert db is session
+        assert city_ids == [1, 2, 3]
+        return 1
+
+    monkeypatch.setattr(
+        "app.services.references.get_reference_by_id", fake_get_reference_by_id
+    )
+    monkeypatch.setattr(
+        "app.services.references.count_locations_by_city_ids",
+        fake_count_locations_by_city_ids,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.admin_delete_country(1)
+
+    assert exc_info.value.status_code == 409
+    assert "linked to locations" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
 async def test_list_reference_locations_raises_404_when_reference_missing(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)

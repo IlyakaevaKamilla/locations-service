@@ -143,7 +143,7 @@ async def create_countries(
 async def create_regions(
     service: ReferenceServiceDep, region_data: AdminRegionCreate
 ) -> ReferenceRead:
-    """Region cannot be created without country_id."""
+    """Create a region linked to an existing country."""
     return await service.admin_create_region(
         name=region_data.name, country_id=region_data.country_id
     )
@@ -153,7 +153,7 @@ async def create_regions(
 async def create_cities(
     service: ReferenceServiceDep, city_data: AdminCityCreate
 ) -> ReferenceRead:
-    """City cannot be created without region_id."""
+    """Create a city linked to an existing region."""
     return await service.admin_create_city(
         name=city_data.name, region_id=city_data.region_id
     )
@@ -177,7 +177,9 @@ async def delete_level_by_id(service: ReferenceServiceDep, level_id: int):
     "/countries/{country_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_country_by_id(service: ReferenceServiceDep, country_id: int):
-    """Deleting country would delete all regions and cities linked to it."""
+    """Delete a country and its regions and cities (cascade).
+    Returns 409 if some of those cities are linked to locations.
+    """
     await service.admin_delete_country(country_id)
 
 
@@ -185,7 +187,9 @@ async def delete_country_by_id(service: ReferenceServiceDep, country_id: int):
     "/regions/{region_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_region_by_id(service: ReferenceServiceDep, region_id: int):
-    """Deleting region would delete all cities linked to it."""
+    """Delete a region and its cities (cascade).
+    Returns 409 if some of those cities are linked to locations.
+    """
     await service.admin_delete_region(region_id)
 
 
@@ -193,6 +197,7 @@ async def delete_region_by_id(service: ReferenceServiceDep, region_id: int):
     "/cities/{city_id}", status_code=status.HTTP_204_NO_CONTENT
 )
 async def delete_city_by_id(service: ReferenceServiceDep, city_id: int):
+    """Delete a city. Returns 409 if it is linked to a location."""
     await service.admin_delete_city(city_id)
 
 
@@ -233,7 +238,7 @@ async def update_region_by_id(
     region_id: int,
     region_data: AdminRegionUpdate,
 ) -> ReferenceRead:
-    """country_id is optional parameter."""
+    """Update a region; when country_id is provided, the region is moved to that country."""
     return await service.admin_update_region(
         item_id=region_id, name=region_data.name, country_id=region_data.country_id
     )
@@ -245,7 +250,7 @@ async def update_city_by_id(
     city_id: int,
     city_data: AdminCityUpdate,
 ) -> ReferenceRead:
-    """region_id is optional parameter."""
+    """Update a city; when region_id is provided, the city is moved to that region."""
     return await service.admin_update_city(
         item_id=city_id, name=city_data.name, region_id=city_data.region_id
     )

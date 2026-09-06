@@ -9,6 +9,7 @@ from app.crud.references import (
     admin_create_reference,
     admin_delete_reference,
     admin_update_reference,
+    count_locations_by_city_ids,
     get_reference_by_id,
     is_name_unique,
     list_locations_by_reference,
@@ -322,13 +323,31 @@ class ReferenceService:
         await self._delete_reference(model=Level, item_id=level_id)
 
     async def admin_delete_city(self, city_id: int) -> None:
+        await self._ensure_cities_have_no_locations([city_id])
         await self._delete_reference(model=City, item_id=city_id)
 
     async def admin_delete_region(self, region_id: int) -> None:
+        region = await self._get_reference_or_404(model=Region, item_id=region_id)
+        await self._ensure_cities_have_no_locations([city.id for city in region.cities])
         await self._delete_reference(model=Region, item_id=region_id)
 
     async def admin_delete_country(self, country_id: int) -> None:
+        country = await self._get_reference_or_404(model=Country, item_id=country_id)
+        city_ids = [city.id for region in country.regions for city in region.cities]
+        await self._ensure_cities_have_no_locations(city_ids)
         await self._delete_reference(model=Country, item_id=country_id)
+
+    async def _ensure_cities_have_no_locations(self, city_ids: list[int]) -> None:
+        """Raise 409 if any location references any of the city ids."""
+        locations_count = await count_locations_by_city_ids(self.session, city_ids)
+        if locations_count:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Cannot delete: some cities are linked to locations. "
+                    "Move or delete those locations first."
+                ),
+            )
 
     async def _delete_reference(self, model: type[ModelT], item_id: int) -> None:
         deleted = await admin_delete_reference(

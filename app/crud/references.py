@@ -130,3 +130,14 @@ async def list_locations_by_reference(
     statement = base_statement.order_by(Location.name).limit(limit).offset(offset)
     result = await session.execute(statement)
     return result.scalars().all(), int(total or 0)
+
+
+async def count_locations_by_city_ids(
+    session: AsyncSession, city_ids: list[int]
+) -> int:
+    """Count locations referencing any of the given city ids."""
+    if not city_ids:
+        return 0
+    statement = select(func.count()).where(Location.city_id.in_(city_ids))
+    total = await session.scalar(statement)
+    return int(total or 0)
