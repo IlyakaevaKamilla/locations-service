@@ -630,20 +630,6 @@ def test_admin_create_location_service_raises_422_when_city_missing(monkeypatch)
 
     assert exc_info.value.status_code == 422
     assert exc_info.value.detail == "City with id 999 not found"
-    session = FakeSession()
-    location_in = SimpleNamespace(
-        model_dump=lambda exclude_unset: {
-            "name": "Роза Хутор",
-            "activity_ids": [],
-            "styles": [],
-            "levels": [],
-        }
-    )
-
-    result = asyncio.run(admin_create_location(session, location_in))
-
-    assert result is None
-    assert session.commits == 0
 
 
 def test_admin_create_location_returns_none_when_city_id_absent():
