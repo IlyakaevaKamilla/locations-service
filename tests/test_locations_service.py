@@ -29,6 +29,8 @@ from app.routes.locations import (
 )
 from app.services.locations import LocationService
 
+from app.exceptions import CityNotFoundError
+
 
 class FakeSession:
     def __init__(self):
@@ -64,8 +66,6 @@ def make_location(**overrides):
         "slug": "rosa-khutor",
         "name": "Роза Хутор",
         "city_id": 1,
-        "region_id": 1,
-        "country_id": 1,
         "city": "Сочи",
         "region": "Краснодарский край",
         "country": "Russia",
@@ -491,8 +491,6 @@ def test_admin_create_location_links_styles_and_levels(monkeypatch):
         slug="rosa-khutor",
         name="Роза Хутор",
         city_id=1,
-        region_id=1,
-        country_id=1,
     )
     new_location.activities_rel = [LocationActivity(activity_id=12)]
     new_location.styles_rel = [LocationStyle(style_id=1)]
@@ -541,8 +539,6 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
         slug="rosa",
         name="Роза Хутор",
         city_id=1,
-        region_id=1,
-        country_id=1,
     )
 
     async def fake_execute(statement):
@@ -571,7 +567,7 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
     assert session.commits == 1
 
 
-def test_admin_create_location_returns_none_when_city_missing(monkeypatch):
+def test_admin_create_location_raises_when_city_missing(monkeypatch):
     session = FakeSession()
     location_in = SimpleNamespace(
         model_dump=lambda exclude_unset: {
@@ -591,13 +587,14 @@ def test_admin_create_location_returns_none_when_city_missing(monkeypatch):
 
     monkeypatch.setattr(session, "execute", fake_execute)
 
-    result = asyncio.run(admin_create_location(session, location_in))
+    with pytest.raises(CityNotFoundError) as exc_info:
+        asyncio.run(admin_create_location(session, location_in))
 
-    assert result is None
+    assert exc_info.value.city_id == 999
     assert session.commits == 0
 
 
-def test_admin_create_location_service_raises_422_when_city_missing(monkeypatch):
+def test_admin_create_location_service_raises_404_when_city_missing(monkeypatch):
     session = FakeSession()
     service = LocationService(session)
     location_in = SimpleNamespace(
@@ -608,7 +605,7 @@ def test_admin_create_location_service_raises_422_when_city_missing(monkeypatch)
     )
 
     async def fake_admin_create_location(db, location_in):
-        return None
+        raise CityNotFoundError(999)
 
     async def fake_list_location_filter_options(db):
         return {
@@ -628,11 +625,11 @@ def test_admin_create_location_service_raises_422_when_city_missing(monkeypatch)
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(service.admin_create_location(location_in))
 
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == "City with id 999 not found"
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "City with id 999 not found."
 
 
-def test_admin_create_location_returns_none_when_city_id_absent():
+def test_admin_create_location_raises_when_city_id_absent():
     session = FakeSession()
     location_in = SimpleNamespace(
         model_dump=lambda exclude_unset: {
@@ -643,7 +640,8 @@ def test_admin_create_location_returns_none_when_city_id_absent():
         }
     )
 
-    result = asyncio.run(admin_create_location(session, location_in))
+    with pytest.raises(CityNotFoundError) as exc_info:
+        asyncio.run(admin_create_location(session, location_in))
 
-    assert result is None
+    assert exc_info.value.city_id is None
     assert session.commits == 0

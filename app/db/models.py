@@ -7,8 +7,6 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
-    ForeignKeyConstraint,
-    Index,
     Integer,
     String,
     Text,
@@ -110,7 +108,6 @@ class Region(ReferenceMixin, Base):
     cities: Mapped[list[City]] = relationship(back_populates="region")
 
     __table_args__ = (
-        UniqueConstraint("id", "country_id", name="uq_region_id_country"),
         UniqueConstraint("name", "country_id", name="uq_region_name_country"),
     )
 
@@ -119,7 +116,7 @@ class City(ReferenceMixin, Base):
     __tablename__ = "cities"
 
     region_id: Mapped[int] = mapped_column(
-        ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=False
+        ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=True
     )
 
     region: Mapped[Region] = relationship(back_populates="cities")
@@ -128,7 +125,6 @@ class City(ReferenceMixin, Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("id", "region_id", name="uq_city_id_region"),
         UniqueConstraint("name", "region_id", name="uq_city_name_region"),
     )
 
@@ -142,8 +138,6 @@ class Location(Base):
     city_id: Mapped[int] = mapped_column(
         ForeignKey("cities.id"), nullable=False, index=True
     )
-    region_id: Mapped[int] = mapped_column(nullable=False, index=True)
-    country_id: Mapped[int] = mapped_column(nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -204,18 +198,4 @@ class Location(Base):
             else ""
         )
 
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["city_id", "region_id"],
-            ["cities.id", "cities.region_id"],
-            onupdate="CASCADE",
-            name="fk_locations_valid_city_region",
-        ),
-        ForeignKeyConstraint(
-            ["region_id", "country_id"],
-            ["regions.id", "regions.country_id"],
-            onupdate="CASCADE",
-            name="fk_locations_valid_region_country",
-        ),
-        Index("ix_locations_country_id", "country_id"),
-    )
+    __table_args__ = ()

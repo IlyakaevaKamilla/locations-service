@@ -3,15 +3,15 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
+from psycopg2.errors import ForeignKeyViolation, UniqueViolation
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.references import (
     admin_create_reference,
     admin_delete_reference,
     admin_update_reference,
-    count_locations_by_city_ids,
     get_reference_by_id,
-    is_name_unique,
     list_locations_by_reference,
     list_references,
 )
@@ -49,19 +49,6 @@ class ReferenceService:
                 detail=f"{model.__name__} with id {item_id} not found",
             )
         return reference
-
-    async def _ensure_name_unique(
-        self, model: type[ModelT], name: str, exclude_id: int | None = None
-    ) -> None:
-        """Raise 400 if name already exists."""
-        is_unique = await is_name_unique(
-            self.session, model=model, name=name, exclude_id=exclude_id
-        )
-        if not is_unique:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"{model.__name__} with name '{name}' already exists",
-            )
 
     async def list_styles(
         self,
@@ -159,47 +146,61 @@ class ReferenceService:
     ) -> ReferenceRead:
         return await self._create_reference(model=Level, name=name)
 
-    async def _create_reference(self, model: type[ModelT], name: str) -> ReferenceRead:
-        await self._ensure_name_unique(model=model, name=name)
-        item = await admin_create_reference(self.session, model=model, name=name)
-        return ReferenceRead.model_validate(item)
-
-    async def _ensure_parent_exists(
-        self, model: type[ModelT], parent_id: int, parent_name: str
-    ) -> None:
-        """Raise 404 if the parent reference does not exist."""
-        parent = await get_reference_by_id(self.session, model=model, item_id=parent_id)
-        if parent is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"{parent_name} with id {parent_id} not found",
-            )
-
     async def admin_create_country(self, name: str) -> ReferenceRead:
-        await self._ensure_name_unique(model=Country, name=name)
-        item = await admin_create_reference(self.session, model=Country, name=name)
-        return ReferenceRead.model_validate(item)
+        return await self._create_reference(model=Country, name=name)
 
     async def admin_create_region(self, name: str, country_id: int) -> ReferenceRead:
         """Create a region linked to a country."""
-        await self._ensure_parent_exists(
-            model=Country, parent_id=country_id, parent_name="Country"
-        )
-        await self._ensure_name_unique(model=Region, name=name)
-        item = await admin_create_reference(
-            self.session, model=Region, name=name, country_id=country_id
-        )
+        try:
+            item = await admin_create_reference(
+                self.session, model=Region, name=name, country_id=country_id
+            )
+        except IntegrityError as exc:
+            if isinstance(exc.orig, UniqueViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Region with name '{name}' already exists",
+                ) from exc
+            if isinstance(exc.orig, ForeignKeyViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Country with id {country_id} not found",
+                ) from exc
+            raise
         return ReferenceRead.model_validate(item)
 
-    async def admin_create_city(self, name: str, region_id: int) -> ReferenceRead:
+    async def admin_create_city(
+        self, name: str, region_id: int | None
+    ) -> ReferenceRead:
         """Create a city linked to a region."""
-        await self._ensure_parent_exists(
-            model=Region, parent_id=region_id, parent_name="Region"
-        )
-        await self._ensure_name_unique(model=City, name=name)
-        item = await admin_create_reference(
-            self.session, model=City, name=name, region_id=region_id
-        )
+        try:
+            item = await admin_create_reference(
+                self.session, model=City, name=name, region_id=region_id
+            )
+        except IntegrityError as exc:
+            if isinstance(exc.orig, UniqueViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"City with name '{name}' already exists",
+                ) from exc
+            if isinstance(exc.orig, ForeignKeyViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Region with id {region_id} not found",
+                ) from exc
+            raise
+        return ReferenceRead.model_validate(item)
+
+    async def _create_reference(self, model: type[ModelT], name: str) -> ReferenceRead:
+        try:
+            item = await admin_create_reference(self.session, model=model, name=name)
+        except IntegrityError as exc:
+            if isinstance(exc.orig, UniqueViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{model.__name__} with name '{name}' already exists",
+                ) from exc
+            raise
         return ReferenceRead.model_validate(item)
 
     async def admin_update_style(self, item_id: int, name: str) -> ReferenceRead:
@@ -213,22 +214,18 @@ class ReferenceService:
     ) -> ReferenceRead:
         fields = {"name": name}
         if region_id is not None:
-            await self._ensure_parent_exists(
-                model=Region, parent_id=region_id, parent_name="Region"
-            )
             fields["region_id"] = region_id
-        return await self._update_reference(model=City, item_id=item_id, **fields)
+        updated = await self._update_reference(model=City, item_id=item_id, **fields)
+        return updated
 
     async def admin_update_region(
         self, item_id: int, name: str, country_id: int | None
     ) -> ReferenceRead:
         fields = {"name": name}
         if country_id is not None:
-            await self._ensure_parent_exists(
-                model=Country, parent_id=country_id, parent_name="Country"
-            )
             fields["country_id"] = country_id
-        return await self._update_reference(model=Region, item_id=item_id, **fields)
+        updated = await self._update_reference(model=Region, item_id=item_id, **fields)
+        return updated
 
     async def admin_update_country(self, item_id: int, name: str) -> ReferenceRead:
         return await self._update_reference(model=Country, item_id=item_id, name=name)
@@ -236,13 +233,22 @@ class ReferenceService:
     async def _update_reference(
         self, model: type[ModelT], item_id: int, **fields
     ) -> ReferenceRead:
-        if "name" in fields:
-            await self._ensure_name_unique(
-                model=model, name=fields["name"], exclude_id=item_id
+        try:
+            updated_item = await admin_update_reference(
+                self.session, model=model, item_id=item_id, **fields
             )
-        updated_item = await admin_update_reference(
-            self.session, model=model, item_id=item_id, **fields
-        )
+        except IntegrityError as exc:
+            if isinstance(exc.orig, UniqueViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{model.__name__} with name '{fields['name']}' already exists",
+                ) from exc
+            if isinstance(exc.orig, ForeignKeyViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Parent reference with id {fields.get('region_id') or fields.get('country_id')} not found",
+                ) from exc
+            raise
         if updated_item is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -323,31 +329,42 @@ class ReferenceService:
         await self._delete_reference(model=Level, item_id=level_id)
 
     async def admin_delete_city(self, city_id: int) -> None:
-        await self._ensure_cities_have_no_locations([city_id])
-        await self._delete_reference(model=City, item_id=city_id)
+        try:
+            await self._delete_reference(model=City, item_id=city_id)
+        except IntegrityError as e:
+            if isinstance(e.orig, ForeignKeyViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Cannot delete: City is linked to locations. Move or delete those locations first",
+                )
 
     async def admin_delete_region(self, region_id: int) -> None:
-        region = await self._get_reference_or_404(model=Region, item_id=region_id)
-        await self._ensure_cities_have_no_locations([city.id for city in region.cities])
-        await self._delete_reference(model=Region, item_id=region_id)
+        try:
+            region = await self._get_reference_or_404(model=Region, item_id=region_id)
+            linked_cities = [city.name for city in region.cities]
+            await self._delete_reference(model=Region, item_id=region_id)
+        except IntegrityError as e:
+            if isinstance(e.orig, ForeignKeyViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Cannot delete: City {''.join(linked_cities)} is linked to locations. Move or delete those locations first",
+                )
 
     async def admin_delete_country(self, country_id: int) -> None:
-        country = await self._get_reference_or_404(model=Country, item_id=country_id)
-        city_ids = [city.id for region in country.regions for city in region.cities]
-        await self._ensure_cities_have_no_locations(city_ids)
-        await self._delete_reference(model=Country, item_id=country_id)
-
-    async def _ensure_cities_have_no_locations(self, city_ids: list[int]) -> None:
-        """Raise 409 if any location references any of the city ids."""
-        locations_count = await count_locations_by_city_ids(self.session, city_ids)
-        if locations_count:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Cannot delete: some cities are linked to locations. "
-                    "Move or delete those locations first."
-                ),
+        try:
+            country = await self._get_reference_or_404(
+                model=Country, item_id=country_id
             )
+            linked_cities = [
+                city.name for region in country.regions for city in region.cities
+            ]
+            await self._delete_reference(model=Country, item_id=country_id)
+        except IntegrityError as e:
+            if isinstance(e.orig, ForeignKeyViolation):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Cannot delete: City {''.join(linked_cities)} is linked to locations. Move or delete those locations first",
+                )
 
     async def _delete_reference(self, model: type[ModelT], item_id: int) -> None:
         deleted = await admin_delete_reference(

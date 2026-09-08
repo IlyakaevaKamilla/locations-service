@@ -27,9 +27,9 @@ class LocationRead(LocationBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    city: str = Field(min_length=1, max_length=150)
-    region: str = Field(min_length=1, max_length=150)
-    country: str = Field(min_length=1, max_length=150)
+    city: str
+    region: str
+    country: str
     created_at: datetime
     updated_at: datetime
 

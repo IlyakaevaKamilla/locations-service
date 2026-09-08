@@ -18,18 +18,6 @@ async def get_reference_by_id(
     return result.scalar_one_or_none()
 
 
-async def is_name_unique(
-    session: AsyncSession, model: type[ModelT], name: str, exclude_id: int | None = None
-) -> bool:
-    """Check if the name is unique. True if yes, False if already exists."""
-    statement = select(model).where(model.name == name)
-    if exclude_id is not None:
-        statement = statement.where(model.id != exclude_id)
-
-    result = await session.execute(statement)
-    return result.scalar_one_or_none() is None
-
-
 async def list_references(
     session: AsyncSession,
     model: type[ModelT],
@@ -130,14 +118,3 @@ async def list_locations_by_reference(
     statement = base_statement.order_by(Location.name).limit(limit).offset(offset)
     result = await session.execute(statement)
     return result.scalars().all(), int(total or 0)
-
-
-async def count_locations_by_city_ids(
-    session: AsyncSession, city_ids: list[int]
-) -> int:
-    """Count locations referencing any of the given city ids."""
-    if not city_ids:
-        return 0
-    statement = select(func.count()).where(Location.city_id.in_(city_ids))
-    total = await session.scalar(statement)
-    return int(total or 0)

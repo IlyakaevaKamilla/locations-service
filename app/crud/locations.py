@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.db.models import (
     City,
@@ -18,6 +18,7 @@ from app.db.models import (
     Region,
     Style,
 )
+from app.exceptions import CityNotFoundError
 from app.schemas.admin import AdminLocationCreate
 from app.types import JunctionT
 
@@ -135,7 +136,7 @@ def _apply_level_filter(
     )
 
 
-def _apply_geo_filters(
+def _add_geo_joins(
     statement: Select,
     *,
     search: str | None = None,
@@ -143,7 +144,7 @@ def _apply_geo_filters(
     city: StrFilter | None = None,
     country: StrFilter | None = None,
 ):
-    """Apply filter and search via city - region - country chain."""
+    """Join city - region - country chain."""
     if search or region or city or country:
         statement = (
             statement.join(City, City.id == Location.city_id)
@@ -159,9 +160,9 @@ def _load_location_options():
         selectinload(Location.activities_rel),
         selectinload(Location.styles_rel).selectinload(LocationStyle.style),
         selectinload(Location.levels_rel).selectinload(LocationLevel.level),
-        selectinload(Location.city_rel)
-        .selectinload(City.region)
-        .selectinload(Region.country),
+        joinedload(Location.city_rel)
+        .joinedload(City.region)
+        .joinedload(Region.country),
     )
 
 
@@ -178,7 +179,7 @@ def apply_location_filters(
     is_active: bool | None = None,
 ):
     """Apply search and location filters, using OR inside fields and AND between fields."""
-    statement = _apply_geo_filters(
+    statement = _add_geo_joins(
         statement=statement, search=search, region=region, city=city, country=country
     )
     if search:
@@ -277,7 +278,8 @@ async def list_location_filter_options(
 
     regions_result = await session.execute(
         select(Region.name)
-        .join(Location, Location.region_id == Region.id)
+        .join(City, City.region_id == Region.id)
+        .join(Location, Location.city_id == City.id)
         .where(filters)
         .distinct()
     )
@@ -289,7 +291,9 @@ async def list_location_filter_options(
     )
     countries_result = await session.execute(
         select(Country.name)
-        .join(Location, Location.country_id == Country.id)
+        .join(Region, Region.country_id == Country.id)
+        .join(City, City.region_id == Region.id)
+        .join(Location, Location.city_id == City.id)
         .where(filters)
         .distinct()
     )
@@ -345,7 +349,7 @@ async def _get_city_with_region(
 
 async def admin_create_location(
     session: AsyncSession, locations_in: AdminLocationCreate
-) -> Location | None:
+) -> Location:
     location_data = locations_in.model_dump(exclude_unset=True)
     activity_ids = location_data.pop("activity_ids", [])
     styles = location_data.pop("styles", [])
@@ -353,16 +357,14 @@ async def admin_create_location(
 
     city_id = location_data.pop("city_id", None)
     if city_id is None:
-        return None
+        raise CityNotFoundError(city_id)
     city = await _get_city_with_region(session, city_id)
     if city is None:
-        return None
+        raise CityNotFoundError(city_id)
 
     new_location = Location(
         **location_data,
         city_id=city.id,
-        region_id=city.region_id,
-        country_id=city.region.country_id,
     )
     new_location.activities_rel = [
         LocationActivity(activity_id=activity_id) for activity_id in activity_ids

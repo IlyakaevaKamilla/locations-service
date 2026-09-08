@@ -53,8 +53,6 @@ def make_location(**overrides):
         "slug": "rosa-khutor",
         "name": "Роза Хутор",
         "city_id": 1,
-        "region_id": 1,
-        "country_id": 1,
         "city": "Сочи",
         "region": "Краснодарский край",
         "country": "Russia",
