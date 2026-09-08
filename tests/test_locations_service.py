@@ -567,7 +567,8 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
     assert session.commits == 1
 
 
-def test_admin_create_location_raises_when_city_missing(monkeypatch):
+@pytest.mark.asyncio
+async def test_admin_create_location_raises_when_city_missing(monkeypatch):
     session = FakeSession()
     location_in = SimpleNamespace(
         model_dump=lambda exclude_unset: {
@@ -588,13 +589,14 @@ def test_admin_create_location_raises_when_city_missing(monkeypatch):
     monkeypatch.setattr(session, "execute", fake_execute)
 
     with pytest.raises(CityNotFoundError) as exc_info:
-        asyncio.run(admin_create_location(session, location_in))
+        await admin_create_location(session, location_in)
 
     assert exc_info.value.city_id == 999
     assert session.commits == 0
 
 
-def test_admin_create_location_service_raises_404_when_city_missing(monkeypatch):
+@pytest.mark.asyncio
+async def test_admin_create_location_service_raises_404_when_city_missing(monkeypatch):
     session = FakeSession()
     service = LocationService(session)
     location_in = SimpleNamespace(
@@ -623,13 +625,14 @@ def test_admin_create_location_service_raises_404_when_city_missing(monkeypatch)
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(service.admin_create_location(location_in))
+        await service.admin_create_location(location_in)
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == "City with id 999 not found."
 
 
-def test_admin_create_location_raises_when_city_id_absent():
+@pytest.mark.asyncio
+async def test_admin_create_location_raises_when_city_id_absent():
     session = FakeSession()
     location_in = SimpleNamespace(
         model_dump=lambda exclude_unset: {
@@ -641,7 +644,7 @@ def test_admin_create_location_raises_when_city_id_absent():
     )
 
     with pytest.raises(CityNotFoundError) as exc_info:
-        asyncio.run(admin_create_location(session, location_in))
+        await admin_create_location(session, location_in)
 
     assert exc_info.value.city_id is None
     assert session.commits == 0
