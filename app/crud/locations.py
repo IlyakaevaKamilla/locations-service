@@ -18,7 +18,6 @@ from app.db.models import (
     Region,
     Style,
 )
-from app.exceptions import CityNotFoundError
 from app.schemas.admin import AdminLocationCreate
 from app.types import JunctionT
 
@@ -335,18 +334,6 @@ async def list_location_filter_options(
     }
 
 
-async def _get_city_with_region(
-    session: AsyncSession, city_id: int | None
-) -> City | None:
-    """Load a city with its region in one query."""
-    if city_id is None:
-        return None
-    result = await session.execute(
-        select(City).options(selectinload(City.region)).where(City.id == city_id)
-    )
-    return result.scalar_one_or_none()
-
-
 async def admin_create_location(
     session: AsyncSession, locations_in: AdminLocationCreate
 ) -> Location:
@@ -355,16 +342,11 @@ async def admin_create_location(
     styles = location_data.pop("styles", [])
     levels = location_data.pop("levels", [])
 
-    city_id = location_data.pop("city_id", None)
-    if city_id is None:
-        raise CityNotFoundError(city_id)
-    city = await _get_city_with_region(session, city_id)
-    if city is None:
-        raise CityNotFoundError(city_id)
+    city_id = location_data.pop("city_id")
 
     new_location = Location(
         **location_data,
-        city_id=city.id,
+        city_id=city_id,
     )
     new_location.activities_rel = [
         LocationActivity(activity_id=activity_id) for activity_id in activity_ids

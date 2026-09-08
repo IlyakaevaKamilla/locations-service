@@ -197,5 +197,3 @@ class Location(Base):
             if self.city_rel and self.city_rel.region and self.city_rel.region.country
             else ""
         )
-
-    __table_args__ = ()

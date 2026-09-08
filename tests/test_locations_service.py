@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI, HTTPException
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
@@ -27,9 +28,8 @@ from app.routes.locations import (
     read_locations,
     router,
 )
+from app.schemas.admin import AdminLocationCreate
 from app.services.locations import LocationService
-
-from app.exceptions import CityNotFoundError
 
 
 class FakeSession:
@@ -568,34 +568,6 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_admin_create_location_raises_when_city_missing(monkeypatch):
-    session = FakeSession()
-    location_in = SimpleNamespace(
-        model_dump=lambda exclude_unset: {
-            "name": "Роза Хутор",
-            "city_id": 999,
-            "activity_ids": [],
-            "styles": [],
-            "levels": [],
-        }
-    )
-
-    async def fake_execute(statement):
-        compiled = str(statement.compile(dialect=postgresql.dialect()))
-        if "cities.id = %(" in compiled:
-            return SimpleNamespace(scalar_one_or_none=lambda: None)
-        raise AssertionError(f"unexpected statement: {compiled}")
-
-    monkeypatch.setattr(session, "execute", fake_execute)
-
-    with pytest.raises(CityNotFoundError) as exc_info:
-        await admin_create_location(session, location_in)
-
-    assert exc_info.value.city_id == 999
-    assert session.commits == 0
-
-
-@pytest.mark.asyncio
 async def test_admin_create_location_service_raises_404_when_city_missing(monkeypatch):
     session = FakeSession()
     service = LocationService(session)
@@ -606,8 +578,8 @@ async def test_admin_create_location_service_raises_404_when_city_missing(monkey
         levels=[],
     )
 
-    async def fake_admin_create_location(db, location_in):
-        raise CityNotFoundError(999)
+    async def fake_get_reference_by_id(db, model, item_id):
+        return None
 
     async def fake_list_location_filter_options(db):
         return {
@@ -617,7 +589,7 @@ async def test_admin_create_location_service_raises_404_when_city_missing(monkey
         }
 
     monkeypatch.setattr(
-        "app.services.locations.admin_create_location", fake_admin_create_location
+        "app.services.locations.get_reference_by_id", fake_get_reference_by_id
     )
     monkeypatch.setattr(
         "app.services.locations.list_location_filter_options",
@@ -631,20 +603,13 @@ async def test_admin_create_location_service_raises_404_when_city_missing(monkey
     assert exc_info.value.detail == "City with id 999 not found."
 
 
-@pytest.mark.asyncio
-async def test_admin_create_location_raises_when_city_id_absent():
-    session = FakeSession()
-    location_in = SimpleNamespace(
-        model_dump=lambda exclude_unset: {
-            "name": "Роза Хутор",
-            "activity_ids": [],
-            "styles": [],
-            "levels": [],
-        }
-    )
+def test_admin_location_create_requires_city_id():
+    with pytest.raises(ValidationError) as exc_info:
+        AdminLocationCreate(
+            name="Роза Хутор",
+            activity_ids=[],
+            styles=[],
+            levels=[],
+        )
 
-    with pytest.raises(CityNotFoundError) as exc_info:
-        await admin_create_location(session, location_in)
-
-    assert exc_info.value.city_id is None
-    assert session.commits == 0
+    assert "city_id" in exc_info.value.errors()[0]["loc"]
