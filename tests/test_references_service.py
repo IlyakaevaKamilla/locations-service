@@ -520,7 +520,7 @@ def test_admin_create_region_linked_to_country(monkeypatch):
 
 
 @pytest.mark.asyncio
-def test_admin_create_region_raises_404_when_country_missing(monkeypatch):
+async def test_admin_create_region_raises_404_when_country_missing(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
 
@@ -536,14 +536,14 @@ def test_admin_create_region_raises_404_when_country_missing(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(service.admin_create_region("Кубань", country_id=999))
+        await service.admin_create_region("Кубань", country_id=999)
 
     assert exc_info.value.status_code == 404
     assert "Country" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
-def test_admin_create_region_raises_400_on_duplicate(monkeypatch):
+async def test_admin_create_region_raises_400_on_duplicate(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
 
@@ -557,7 +557,7 @@ def test_admin_create_region_raises_400_on_duplicate(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(service.admin_create_region("Кубань", country_id=1))
+        await service.admin_create_region("Кубань", country_id=1)
 
     assert exc_info.value.status_code == 400
     assert "already exists" in exc_info.value.detail
@@ -592,7 +592,7 @@ def test_admin_create_city_linked_to_region(monkeypatch):
 
 
 @pytest.mark.asyncio
-def test_admin_create_city_raises_404_when_region_missing(monkeypatch):
+async def test_admin_create_city_raises_404_when_region_missing(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
 
@@ -608,14 +608,14 @@ def test_admin_create_city_raises_404_when_region_missing(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(service.admin_create_city("Адлер", region_id=999))
+        await service.admin_create_city("Адлер", region_id=999)
 
     assert exc_info.value.status_code == 404
     assert "Region" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
-def test_admin_create_city_raises_400_on_duplicate(monkeypatch):
+async def test_admin_create_city_raises_400_on_duplicate(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
 
@@ -629,7 +629,7 @@ def test_admin_create_city_raises_400_on_duplicate(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(service.admin_create_city("Сочи", region_id=1))
+        await service.admin_create_city("Сочи", region_id=1)
 
     assert exc_info.value.status_code == 400
     assert "already exists" in exc_info.value.detail
@@ -751,7 +751,7 @@ def test_admin_update_region_without_country_id(monkeypatch):
 
 
 @pytest.mark.asyncio
-def test_admin_update_city_raises_404_when_region_missing(monkeypatch):
+async def test_admin_update_city_raises_404_when_region_missing(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
 
@@ -767,14 +767,14 @@ def test_admin_update_city_raises_404_when_region_missing(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(service.admin_update_city(item_id=1, name="Сочи", region_id=999))
+        await service.admin_update_city(item_id=1, name="Сочи", region_id=999)
 
     assert exc_info.value.status_code == 404
     assert "not found" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
-def test_admin_update_region_raises_404_when_country_missing(monkeypatch):
+async def test_admin_update_region_raises_404_when_country_missing(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
 
@@ -790,9 +790,7 @@ def test_admin_update_region_raises_404_when_country_missing(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(
-            service.admin_update_region(item_id=1, name="Кубань", country_id=999)
-        )
+        await service.admin_update_region(item_id=1, name="Кубань", country_id=999)
 
     assert exc_info.value.status_code == 404
     assert "not found" in exc_info.value.detail
