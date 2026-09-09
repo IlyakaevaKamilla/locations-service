@@ -11,9 +11,7 @@ class LocationBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=255)
-    region: str = Field(min_length=1, max_length=255)
-    city: str | None = Field(default=None, max_length=255)
-    country: str = Field(default="Russia", max_length=120)
+    city_id: int = Field(ge=1)
     description: str | None = None
     latitude: float | None = None
     longitude: float | None = None
@@ -29,6 +27,9 @@ class LocationRead(LocationBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    city: str
+    region: str | None = Field(default=None, max_length=150)
+    country: str | None = Field(default=None, max_length=150)
     created_at: datetime
     updated_at: datetime
 

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.locations import LocationBase
 from app.schemas.mixins import PaginationMixin
-from app.schemas.references import ReferenceBase, ReferenceRead
+from app.schemas.references import ReferenceBase
 
 
 class AdminLocationBase(LocationBase):
@@ -17,6 +17,9 @@ class AdminLocationRead(LocationBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    city: str = Field(min_length=1, max_length=150)
+    region: str | None = Field(default=None, max_length=150)
+    country: str | None = Field(default=None, max_length=150)
     created_at: datetime
     updated_at: datetime
 
@@ -33,17 +36,17 @@ class AdminReferenceCreate(ReferenceBase):
     pass
 
 
-class AdminStyleRead(ReferenceRead):
-    pass
+class AdminRegionCreate(ReferenceBase):
+    country_id: int
 
 
-class AdminLevelRead(ReferenceRead):
-    pass
+class AdminCityCreate(ReferenceBase):
+    region_id: int | None = None
 
 
-class AdminStyleCreate(AdminReferenceCreate):
-    pass
+class AdminRegionUpdate(ReferenceBase):
+    country_id: int | None = None
 
 
-class AdminLevelCreate(AdminReferenceCreate):
-    pass
+class AdminCityUpdate(ReferenceBase):
+    region_id: int | None = None

@@ -5,9 +5,9 @@ from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.db.models import Location, LocationLevel, LocationStyle
+from app.crud.locations import _load_location_options
+from app.db.models import Location
 from app.types import JunctionT, ModelT
 
 
@@ -16,18 +16,6 @@ async def get_reference_by_id(
 ) -> ModelT | None:
     result = await session.execute(select(model).where(model.id == item_id))
     return result.scalar_one_or_none()
-
-
-async def is_name_unique(
-    session: AsyncSession, model: type[ModelT], name: str, exclude_id: int | None = None
-) -> bool:
-    """Check if the name is unique. True if yes, False if already exists."""
-    statement = select(model).where(model.name == name)
-    if exclude_id is not None:
-        statement = statement.where(model.id != exclude_id)
-
-    result = await session.execute(statement)
-    return result.scalar_one_or_none() is None
 
 
 async def list_references(
@@ -61,9 +49,9 @@ async def list_references(
 async def admin_create_reference(
     session: AsyncSession,
     model: type[ModelT],
-    name: str,
+    **fields,
 ) -> ModelT:
-    item = model(name=name)
+    item = model(**fields)
     session.add(item)
     await session.commit()
     await session.refresh(item)
@@ -74,12 +62,13 @@ async def admin_update_reference(
     session: AsyncSession,
     model: type[ModelT],
     item_id: int,
-    name: str,
+    **fields,
 ) -> ModelT | None:
     item = await get_reference_by_id(session, model, item_id)
     if item is None:
         return None
-    item.name = name
+    for field, value in fields.items():
+        setattr(item, field, value)
     await session.commit()
     await session.refresh(item)
     return item
@@ -116,11 +105,7 @@ async def list_locations_by_reference(
 
     base_statement = (
         select(Location)
-        .options(
-            selectinload(Location.activities_rel),
-            selectinload(Location.styles_rel).selectinload(LocationStyle.style),
-            selectinload(Location.levels_rel).selectinload(LocationLevel.level),
-        )
+        .options(*_load_location_options())
         .join(junction_model, junction_model.location_id == Location.id)
         .where(reference_field == item_id)
     )

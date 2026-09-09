@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI, HTTPException
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
@@ -17,7 +18,7 @@ from app.crud.locations import (  # noqa E402
     apply_location_filters,
     list_location_filter_options,
 )
-from app.db.models import Location
+from app.db.models import Location, LocationActivity, LocationLevel, LocationStyle
 from app.routes.query_params import (
     _parse_activity_ids,
     _parse_location_id,
@@ -27,7 +28,10 @@ from app.routes.locations import (
     read_locations,
     router,
 )
+from app.schemas.admin import AdminLocationCreate
 from app.services.locations import LocationService
+
+from app.exceptions import CityNotFoundError
 
 
 class FakeSession:
@@ -52,13 +56,22 @@ class FakeSession:
 
 
 def make_location(**overrides):
+    country = overrides.pop("country", SimpleNamespace(name="Russia"))
+    region = overrides.pop(
+        "region", SimpleNamespace(name="Краснодарский край", country=country)
+    )
+    city_rel = overrides.pop(
+        "city_rel", SimpleNamespace(name="Сочи", region=region, country=country)
+    )
     payload = {
         "id": 1,
         "slug": "rosa-khutor",
         "name": "Роза Хутор",
-        "region": "Краснодарский край",
+        "city_id": 1,
         "city": "Сочи",
+        "region": "Краснодарский край",
         "country": "Russia",
+        "city_rel": city_rel,
         "description": None,
         "latitude": 43.674,
         "longitude": 40.206,
@@ -110,6 +123,58 @@ def test_get_location_for_admin_includes_inactive_locations(monkeypatch):
 
     assert result.id == 1
     assert result.is_active is False
+
+
+def test_get_location_returns_resolved_geo_fields(monkeypatch):
+    session = FakeSession()
+    service = LocationService(session)
+
+    async def fake_get_location_by_id(db, location_id, *, only_active=True):
+        assert db is session
+        assert location_id == 1
+        assert only_active is True
+        return make_location(
+            id=1,
+            city="Сочи",
+            region="Краснодарский край",
+            country="Russia",
+        )
+
+    monkeypatch.setattr(
+        "app.services.locations.get_location_by_id", fake_get_location_by_id
+    )
+
+    result = asyncio.run(service.get_location(1))
+
+    assert result.city == "Сочи"
+    assert result.region == "Краснодарский край"
+    assert result.country == "Russia"
+
+
+def test_get_location_for_admin_returns_resolved_geo_fields(monkeypatch):
+    session = FakeSession()
+    service = LocationService(session)
+
+    async def fake_get_location_by_id(db, location_id, *, only_active=True):
+        assert db is session
+        assert location_id == 1
+        assert only_active is False
+        return make_location(
+            id=1,
+            city="Сочи",
+            region="Краснодарский край",
+            country="Russia",
+        )
+
+    monkeypatch.setattr(
+        "app.services.locations.get_location_by_id", fake_get_location_by_id
+    )
+
+    result = asyncio.run(service.get_location_for_admin(1))
+
+    assert result.city == "Сочи"
+    assert result.region == "Краснодарский край"
+    assert result.country == "Russia"
 
 
 def test_list_locations_passes_multi_value_filters(monkeypatch):
@@ -265,7 +330,7 @@ def test_locations_openapi_keeps_activity_id_as_integer_array():
     assert activity_id_schema["anyOf"][0]["items"]["type"] == "integer"
 
 
-def test_apply_location_filters_uses_case_insensitive_filters_and_exists():
+def test_apply_location_filters_uses_case_insensitive_filters_joins_geo():
     statement = apply_location_filters(
         select(Location),
         region=["Краснодарский край", "Карачаево-Черкесия"],
@@ -277,7 +342,13 @@ def test_apply_location_filters_uses_case_insensitive_filters_and_exists():
 
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
-    assert "lower(locations.region) IN" in compiled
+    assert "cities" in compiled
+    assert "regions" in compiled
+    assert "countries" in compiled
+    assert "regions.id = cities.region_id" in compiled
+    assert "countries.id = regions.country_id" in compiled
+    assert "lower(regions.name) IN" in compiled
+    assert "cities.id = locations.city_id" in compiled
     assert "location_activities" in compiled
     assert "location_styles" in compiled
     assert "styles" in compiled
@@ -360,7 +431,7 @@ def test_apply_location_filters_empty_lists_keep_other_filters():
     assert "locations.is_active IS false" in compiled
 
 
-def test_list_location_filter_options_joins_name_tables(monkeypatch):
+def test_list_location_filter_options_joins_geo_channels(monkeypatch):
     session = FakeSession()
 
     async def fake_execute(statement):
@@ -375,15 +446,15 @@ def test_list_location_filter_options_joins_name_tables(monkeypatch):
             )
         if "location_activities" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [12]))
-        if "locations.region" in compiled:
+        if "regions" in compiled and "regions.name" in compiled:
             return SimpleNamespace(
                 scalars=lambda: SimpleNamespace(all=lambda: ["Краснодарский край"])
             )
-        if "locations.city" in compiled:
+        if "cities" in compiled and "cities.name" in compiled:
             return SimpleNamespace(
                 scalars=lambda: SimpleNamespace(all=lambda: ["Сочи"])
             )
-        if "locations.country" in compiled:
+        if "countries" in compiled and "countries.name" in compiled:
             return SimpleNamespace(
                 scalars=lambda: SimpleNamespace(all=lambda: ["Russia"])
             )
@@ -396,6 +467,9 @@ def test_list_location_filter_options_joins_name_tables(monkeypatch):
     assert result["styles"] == ["mountain", "freeride"]
     assert result["levels"] == ["beginner"]
     assert result["activity_ids"] == [12]
+    assert result["regions"] == ["Краснодарский край"]
+    assert result["cities"] == ["Сочи"]
+    assert result["countries"] == ["Russia"]
 
 
 def test_admin_create_location_links_styles_and_levels(monkeypatch):
@@ -403,7 +477,7 @@ def test_admin_create_location_links_styles_and_levels(monkeypatch):
     location_in = SimpleNamespace(
         model_dump=lambda exclude_unset: {
             "name": "Роза Хутор",
-            "region": "Краснодарский край",
+            "city_id": 1,
             "activity_ids": [12],
             "styles": ["mountain"],
             "levels": ["beginner"],
@@ -412,27 +486,38 @@ def test_admin_create_location_links_styles_and_levels(monkeypatch):
 
     style = SimpleNamespace(id=1)
     level = SimpleNamespace(id=2)
+    city = SimpleNamespace(id=1, region_id=1, region=SimpleNamespace(country_id=1))
 
-    async def fake_execute(statement):
+    new_location = Location(
+        id=7,
+        slug="rosa-khutor",
+        name="Роза Хутор",
+        city_id=1,
+    )
+    new_location.activities_rel = [LocationActivity(activity_id=12)]
+    new_location.styles_rel = [LocationStyle(style_id=1)]
+    new_location.levels_rel = [LocationLevel(level_id=2)]
+
+    async def fake_execute_create(statement):
         compiled = str(statement.compile(dialect=postgresql.dialect()))
+        if "cities.id = %(" in compiled:
+            return SimpleNamespace(scalar_one_or_none=lambda: city)
         if "styles" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [style]))
         if "levels" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [level]))
+        if "locations.id IS NULL" in compiled:
+            return SimpleNamespace(scalar_one=lambda: new_location)
         raise AssertionError(f"unexpected statement: {compiled}")
 
-    monkeypatch.setattr(session, "execute", fake_execute)
+    monkeypatch.setattr(session, "execute", fake_execute_create)
     monkeypatch.setattr(session, "add", lambda obj: None)
     monkeypatch.setattr(session, "commit", session.commit)
-
-    async def fake_refresh(obj, attribute_names=None):
-        return None
-
-    monkeypatch.setattr(session, "refresh", fake_refresh)
 
     result = asyncio.run(admin_create_location(session, location_in))
 
     assert isinstance(result, Location)
+    assert result.city_id == 1
     assert result.styles_rel[0].style_id == 1
     assert result.levels_rel[0].level_id == 2
     assert session.commits == 1
@@ -443,34 +528,90 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
     location_in = SimpleNamespace(
         model_dump=lambda exclude_unset: {
             "name": "Роза Хутор",
-            "region": "Краснодарский край",
+            "city_id": 1,
             "activity_ids": [],
             "styles": [],
             "levels": [],
         }
     )
 
+    city = SimpleNamespace(id=1, region_id=1, region=SimpleNamespace(country_id=1))
+    new_location = Location(
+        id=8,
+        slug="rosa",
+        name="Роза Хутор",
+        city_id=1,
+    )
+
     async def fake_execute(statement):
         compiled = str(statement.compile(dialect=postgresql.dialect()))
+        if "cities.id = %(" in compiled:
+            return SimpleNamespace(scalar_one_or_none=lambda: city)
         if "styles" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
         if "levels" in compiled:
             return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
+        if "locations.id IS NULL" in compiled:
+            return SimpleNamespace(scalar_one=lambda: new_location)
         raise AssertionError(f"unexpected statement: {compiled}")
 
     monkeypatch.setattr(session, "execute", fake_execute)
     monkeypatch.setattr(session, "add", lambda obj: None)
     monkeypatch.setattr(session, "commit", session.commit)
 
-    async def fake_refresh(obj, attribute_names=None):
-        return None
-
-    monkeypatch.setattr(session, "refresh", fake_refresh)
-
     result = asyncio.run(admin_create_location(session, location_in))
 
     assert isinstance(result, Location)
+    assert result.city_id == 1
     assert result.activities_rel == []
     assert result.styles_rel == []
     assert result.levels_rel == []
     assert session.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_admin_create_location_service_raises_404_when_city_missing(monkeypatch):
+    session = FakeSession()
+    service = LocationService(session)
+    location_in = SimpleNamespace(
+        city_id=999,
+        activity_ids=[],
+        styles=[],
+        levels=[],
+    )
+
+    async def fake_admin_create_location(db, location_in):
+        raise CityNotFoundError(999)
+
+    async def fake_list_location_filter_options(db):
+        return {
+            "activity_ids": [],
+            "styles": [],
+            "levels": [],
+        }
+
+    monkeypatch.setattr(
+        "app.services.locations.admin_create_location", fake_admin_create_location
+    )
+    monkeypatch.setattr(
+        "app.services.locations.list_location_filter_options",
+        fake_list_location_filter_options,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.admin_create_location(location_in)
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "City with id 999 not found."
+
+
+def test_admin_location_create_requires_city_id():
+    with pytest.raises(ValidationError) as exc_info:
+        AdminLocationCreate(
+            name="Роза Хутор",
+            activity_ids=[],
+            styles=[],
+            levels=[],
+        )
+
+    assert "city_id" in exc_info.value.errors()[0]["loc"]

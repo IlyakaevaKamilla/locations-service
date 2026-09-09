@@ -41,13 +41,22 @@ def make_reference(model, **overrides):
 
 def make_location(**overrides):
     """Build a location-like object with all fields used by LocationRead."""
+    country = overrides.pop("country", SimpleNamespace(name="Russia"))
+    region = overrides.pop(
+        "region", SimpleNamespace(name="Краснодарский край", country=country)
+    )
+    city_rel = overrides.pop(
+        "city_rel", SimpleNamespace(name="Сочи", region=region, country=country)
+    )
     payload = {
         "id": 1,
         "slug": "rosa-khutor",
         "name": "Роза Хутор",
-        "region": "Краснодарский край",
+        "city_id": 1,
         "city": "Сочи",
+        "region": "Краснодарский край",
         "country": "Russia",
+        "city_rel": city_rel,
         "description": None,
         "latitude": 43.674,
         "longitude": 40.206,

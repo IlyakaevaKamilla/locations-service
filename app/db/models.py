@@ -7,10 +7,10 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
-    Index,
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -36,8 +36,13 @@ class LocationChildMixin:
 class ReferenceMixin:
     """Shared columns for normalized tables with name."""
 
+    _name_unique: bool = False
+
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(150), unique=True)
+
+    @declared_attr
+    def name(cls) -> Mapped[str]:
+        return mapped_column(String(150), unique=cls._name_unique)
 
 
 class LocationActivity(LocationChildMixin, Base):
@@ -49,6 +54,7 @@ class LocationActivity(LocationChildMixin, Base):
 
 class Style(ReferenceMixin, Base):
     __tablename__ = "styles"
+    _name_unique = True
 
     location_styles: Mapped[list[LocationStyle]] = relationship(back_populates="style")
 
@@ -67,6 +73,7 @@ class LocationStyle(LocationChildMixin, Base):
 
 class Level(ReferenceMixin, Base):
     __tablename__ = "levels"
+    _name_unique = True
 
     location_levels: Mapped[list[LocationLevel]] = relationship(back_populates="level")
 
@@ -83,18 +90,53 @@ class LocationLevel(LocationChildMixin, Base):
     level: Mapped[Level] = relationship(back_populates="location_levels")
 
 
+class Country(ReferenceMixin, Base):
+    __tablename__ = "countries"
+    _name_unique = True
+
+    regions: Mapped[list[Region]] = relationship(back_populates="country")
+
+
+class Region(ReferenceMixin, Base):
+    __tablename__ = "regions"
+
+    country_id: Mapped[int] = mapped_column(
+        ForeignKey("countries.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    country: Mapped[Country] = relationship(back_populates="regions")
+    cities: Mapped[list[City]] = relationship(back_populates="region")
+
+    __table_args__ = (
+        UniqueConstraint("name", "country_id", name="uq_region_name_country"),
+    )
+
+
+class City(ReferenceMixin, Base):
+    __tablename__ = "cities"
+
+    region_id: Mapped[int] = mapped_column(
+        ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+
+    region: Mapped[Region] = relationship(back_populates="cities")
+    locations: Mapped[list[Location]] = relationship(
+        back_populates="city_rel", foreign_keys="Location.city_id"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("name", "region_id", name="uq_city_name_region"),
+    )
+
+
 class Location(Base):
     __tablename__ = "locations"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     slug: Mapped[str] = mapped_column(String(150), unique=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
-    region: Mapped[str] = mapped_column(String(255), index=True)
-    city: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    country: Mapped[str] = mapped_column(
-        String(120),
-        nullable=False,
-        server_default=text("'Russia'"),
+    city_id: Mapped[int] = mapped_column(
+        ForeignKey("cities.id"), nullable=False, index=True
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -122,6 +164,9 @@ class Location(Base):
     levels_rel: Mapped[list[LocationLevel]] = relationship(
         back_populates="location", cascade="all, delete-orphan"
     )
+    city_rel: Mapped[City] = relationship(
+        back_populates="locations", foreign_keys="Location.city_id"
+    )
 
     @property
     def activity_ids(self) -> list[int]:
@@ -135,9 +180,22 @@ class Location(Base):
     def levels(self) -> list[str]:
         return [level.level.name for level in self.levels_rel]
 
-    __table_args__ = (
-        Index("ix_locations_country_region_city", "country", "region", "city"),
-        Index("ix_locations_region_lower", func.lower(region)),
-        Index("ix_locations_city_lower", func.lower(city)),
-        Index("ix_locations_country_lower", func.lower(country)),
-    )
+    @property
+    def city(self) -> str:
+        return self.city_rel.name if self.city_rel else ""
+
+    @property
+    def region(self) -> str | None:
+        return (
+            self.city_rel.region.name
+            if self.city_rel and self.city_rel.region
+            else None
+        )
+
+    @property
+    def country(self) -> str | None:
+        return (
+            self.city_rel.region.country.name
+            if self.city_rel and self.city_rel.region and self.city_rel.region.country
+            else None
+        )
