@@ -804,8 +804,8 @@ def test_references_openapi_exposes_public_and_admin_paths():
 
     paths = app.openapi()["paths"]
 
-    assert "/api/references/styles" in paths
-    assert "/api/references/levels" in paths
+    assert "/api/locations/references/styles" in paths
+    assert "/api/locations/references/levels" in paths
     assert "/api/admin/references/styles" in paths
     assert "/api/admin/references/levels" in paths
     assert "/api/admin/references/styles/{style_id}" in paths
@@ -818,7 +818,7 @@ def test_references_search_requires_min_three_characters():
     app = FastAPI()
     app.include_router(router)
 
-    parameters = app.openapi()["paths"]["/api/references/styles"]["get"]["parameters"]
+    parameters = app.openapi()["paths"]["/api/locations/references/styles"]["get"]["parameters"]
     search_schema = next(
         parameter["schema"] for parameter in parameters if parameter["name"] == "name"
     )
