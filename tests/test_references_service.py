@@ -818,7 +818,9 @@ def test_references_search_requires_min_three_characters():
     app = FastAPI()
     app.include_router(router)
 
-    parameters = app.openapi()["paths"]["/api/locations/references/styles"]["get"]["parameters"]
+    parameters = app.openapi()["paths"]["/api/locations/references/styles"]["get"][
+        "parameters"
+    ]
     search_schema = next(
         parameter["schema"] for parameter in parameters if parameter["name"] == "name"
     )
