@@ -187,7 +187,9 @@ class Location(Base):
     @property
     def region(self) -> str:
         return (
-            self.city_rel.region.name if self.city_rel and self.city_rel.region else ""
+            self.city_rel.region.name
+            if self.city_rel and self.city_rel.region
+            else None
         )
 
     @property
@@ -195,5 +197,5 @@ class Location(Base):
         return (
             self.city_rel.region.country.name
             if self.city_rel and self.city_rel.region and self.city_rel.region.country
-            else ""
+            else None
         )

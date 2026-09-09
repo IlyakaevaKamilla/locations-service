@@ -18,6 +18,7 @@ from app.db.models import (
     Region,
     Style,
 )
+from app.exceptions import CityNotFoundError
 from app.schemas.admin import AdminLocationCreate
 from app.types import JunctionT
 
@@ -343,6 +344,10 @@ async def admin_create_location(
     levels = location_data.pop("levels", [])
 
     city_id = location_data.pop("city_id")
+
+    city = await session.execute(select(City).where(City.id == city_id))
+    if city.scalar_one_or_none() is None:
+        raise CityNotFoundError(city_id)
 
     new_location = Location(
         **location_data,

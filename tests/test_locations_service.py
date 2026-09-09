@@ -31,6 +31,8 @@ from app.routes.locations import (
 from app.schemas.admin import AdminLocationCreate
 from app.services.locations import LocationService
 
+from app.exceptions import CityNotFoundError
+
 
 class FakeSession:
     def __init__(self):
@@ -578,8 +580,8 @@ async def test_admin_create_location_service_raises_404_when_city_missing(monkey
         levels=[],
     )
 
-    async def fake_get_reference_by_id(db, model, item_id):
-        return None
+    async def fake_admin_create_location(db, location_in):
+        raise CityNotFoundError(999)
 
     async def fake_list_location_filter_options(db):
         return {
@@ -589,7 +591,7 @@ async def test_admin_create_location_service_raises_404_when_city_missing(monkey
         }
 
     monkeypatch.setattr(
-        "app.services.locations.get_reference_by_id", fake_get_reference_by_id
+        "app.services.locations.admin_create_location", fake_admin_create_location
     )
     monkeypatch.setattr(
         "app.services.locations.list_location_filter_options",

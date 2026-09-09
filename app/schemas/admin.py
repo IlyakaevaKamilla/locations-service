@@ -18,8 +18,8 @@ class AdminLocationRead(LocationBase):
 
     id: int
     city: str = Field(min_length=1, max_length=150)
-    region: str = Field(min_length=1, max_length=150)
-    country: str = Field(min_length=1, max_length=150)
+    region: str | None = Field(default=None, max_length=150)
+    country: str | None = Field(default=None, max_length=150)
     created_at: datetime
     updated_at: datetime
 

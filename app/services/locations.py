@@ -10,9 +10,8 @@ from app.crud.locations import (
     list_location_filter_options,
     list_locations,
 )
-from app.crud.references import get_reference_by_id
 from app.db.database import get_async_session
-from app.db.models import City
+from app.exceptions import CityNotFoundError
 from app.schemas.admin import AdminLocationCreate, AdminLocationRead
 from app.schemas.locations import (
     LocationFilterOptions,
@@ -162,13 +161,13 @@ class LocationService:
     ) -> AdminLocationRead:
         await self._ensure_relations_exist(location_in)
 
-        city = await get_reference_by_id(self.session, City, location_in.city_id)
-        if city is None:
+        try:
+            location = await admin_create_location(self.session, location_in)
+        except CityNotFoundError as e:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"City with id {location_in.city_id} not found.",
-            )
-        location = await admin_create_location(self.session, location_in)
+                detail=f"City with id {e.city_id} not found.",
+            ) from e
         return location
 
     async def admin_delete_location(self, location_id: int) -> None:
