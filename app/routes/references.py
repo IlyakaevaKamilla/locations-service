@@ -9,7 +9,7 @@ from app.routes.query_params import (
 )
 from app.schemas.references import ReferenceListResponse
 
-router = APIRouter(prefix="/api/references", tags=["references"])
+router = APIRouter(prefix="/api/locations/references", tags=["references"])
 
 
 @router.get("/styles", response_model=ReferenceListResponse)
