@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
@@ -33,6 +34,8 @@ from app.schemas.references import (
 )
 from app.types import JunctionT, ModelT
 
+logger = logging.getLogger("location_service")
+
 
 class ReferenceService:
     def __init__(self, session: AsyncSession):
@@ -44,6 +47,7 @@ class ReferenceService:
             self.session, model=model, item_id=item_id
         )
         if reference is None:
+            logger.warning("%s with id %s not found", model.__name__, item_id)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"{model.__name__} with id {item_id} not found",
@@ -157,11 +161,16 @@ class ReferenceService:
             )
         except IntegrityError as exc:
             if isinstance(exc.orig, UniqueViolation):
+                logger.warning("Region creation is failed, %s already exists", name)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Region with name '{name}' already exists",
                 ) from exc
             if isinstance(exc.orig, ForeignKeyViolation):
+                logger.warning(
+                    "Region creation is failed, country with id %s not found",
+                    country_id,
+                )
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Country with id {country_id} not found",
@@ -179,11 +188,15 @@ class ReferenceService:
             )
         except IntegrityError as exc:
             if isinstance(exc.orig, UniqueViolation):
+                logger.warning("City creation is failed, %s already exists", name)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"City with name '{name}' already exists",
                 ) from exc
             if isinstance(exc.orig, ForeignKeyViolation):
+                logger.warning(
+                    "City creation is failed, region with id %s not found", region_id
+                )
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Region with id {region_id} not found",
@@ -196,11 +209,15 @@ class ReferenceService:
             item = await admin_create_reference(self.session, model=model, name=name)
         except IntegrityError as exc:
             if isinstance(exc.orig, UniqueViolation):
+                logger.warning(
+                    "Creation failed, %s %s already exists", model.__name__, name
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"{model.__name__} with name '{name}' already exists",
                 ) from exc
             raise
+        logger.info("%s was successfully created", model.__name__)
         return ReferenceRead.model_validate(item)
 
     async def admin_update_style(self, item_id: int, name: str) -> ReferenceRead:
@@ -239,21 +256,32 @@ class ReferenceService:
             )
         except IntegrityError as exc:
             if isinstance(exc.orig, UniqueViolation):
+                logger.warning(
+                    "Update is failed, %s %s already exists",
+                    model.__name__,
+                    fields["name"],
+                )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"{model.__name__} with name '{fields['name']}' already exists",
                 ) from exc
             if isinstance(exc.orig, ForeignKeyViolation):
+                logger.warning(
+                    "Update is failed, parent with id %s not found",
+                    fields.get("region_id") or fields.get("country_id"),
+                )
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Parent reference with id {fields.get('region_id') or fields.get('country_id')} not found",
                 ) from exc
             raise
         if updated_item is None:
+            logger.warning("%s with id %s not found", model.__name__, item_id)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"{model.__name__} with id {item_id} not found",
             )
+        logger.info("%s with id %s was successfully updated", model.__name__, item_id)
         return ReferenceRead.model_validate(updated_item)
 
     async def list_style_locations(
@@ -332,6 +360,9 @@ class ReferenceService:
         try:
             await self._delete_reference(model=City, item_id=city_id)
         except IntegrityError as e:
+            logger.warning(
+                "City deletion is failed, city with id %s linked to locations", city_id
+            )
             if isinstance(e.orig, ForeignKeyViolation):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -344,6 +375,10 @@ class ReferenceService:
             linked_cities = [city.name for city in region.cities]
             await self._delete_reference(model=Region, item_id=region_id)
         except IntegrityError as e:
+            logger.warning(
+                "Region deletion is failed, cities linked to locations: %s",
+                linked_cities,
+            )
             if isinstance(e.orig, ForeignKeyViolation):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -360,6 +395,10 @@ class ReferenceService:
             ]
             await self._delete_reference(model=Country, item_id=country_id)
         except IntegrityError as e:
+            logger.warning(
+                "Country deletion is failed, cities linked to locations: %s",
+                linked_cities,
+            )
             if isinstance(e.orig, ForeignKeyViolation):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -371,10 +410,14 @@ class ReferenceService:
             self.session, model=model, item_id=item_id
         )
         if not deleted:
+            logger.warning(
+                "Deletion is failed, %s with id %s not found", model.__name__, item_id
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"{model.__name__} not found",
             )
+        logger.info("%s with id %s was successfully deleted", model.__name__, item_id)
 
 
 async def get_reference_service(
