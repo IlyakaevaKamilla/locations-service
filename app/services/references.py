@@ -170,7 +170,7 @@ class ReferenceService:
         return ReferenceRead.model_validate(item)
 
     async def admin_create_city(
-        self, name: str, region_id: int | None
+        self, name: str, region_id: int
     ) -> ReferenceRead:
         """Create a city linked to a region."""
         try:

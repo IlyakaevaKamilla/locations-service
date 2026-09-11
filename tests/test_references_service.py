@@ -1273,9 +1273,6 @@ def test_references_search_requires_min_three_characters():
     assert search_schema["anyOf"][0]["minLength"] == 3
 
 
-# --- Блок 3: роуты (передача параметров в сервис) ---
-
-
 def test_create_countries_passes_name_to_service():
     service = SimpleNamespace()
 
@@ -1463,9 +1460,6 @@ def test_delete_city_passes_id_to_service():
     assert service.city_id == 3
 
 
-# --- Блок 4: схемы / OpenAPI ---
-
-
 def test_admin_references_openapi_exposes_geo_paths():
     app = FastAPI()
     app.include_router(admin_references_router)
@@ -1485,9 +1479,9 @@ def test_admin_region_create_requires_country_id():
         AdminRegionCreate(name="Кубань")
 
 
-def test_admin_city_create_region_id_optional():
-    city = AdminCityCreate(name="Сочи")
-    assert city.region_id is None
+def test_admin_city_create_region_id_required():
+    with pytest.raises(ValidationError):
+        AdminCityCreate(name="Сочи")
 
 
 def test_admin_region_update_optional_country_id():
@@ -1507,14 +1501,11 @@ def test_region_create_schema_requires_country_id_in_openapi():
     assert "country_id" in schema["required"]
 
 
-def test_city_create_schema_region_id_optional_in_openapi():
+def test_city_create_schema_requires_region_id_in_openapi():
     app = FastAPI()
     app.include_router(admin_references_router)
     schema = app.openapi()["components"]["schemas"]["AdminCityCreate"]
-    assert "region_id" not in schema["required"]
-
-
-# --- Блок 5: поиск по имени и id ---
+    assert "region_id" in schema["required"]
 
 
 def test_list_countries_filters_by_name_and_id(monkeypatch):

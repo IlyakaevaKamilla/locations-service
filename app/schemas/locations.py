@@ -27,15 +27,11 @@ class LocationRead(LocationBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    city: str
-    region: str | None = Field(default=None, max_length=150)
-    country: str | None = Field(default=None, max_length=150)
+    city: str = Field(min_length=1, max_length=255)
+    region: str | None = Field(default=None, min_length=1, max_length=255)
+    country: str | None = Field(default=None, max_length=120)
     created_at: datetime
     updated_at: datetime
-
-
-class LocationCreate(LocationBase):
-    model_config = ConfigDict(from_attributes=True)
 
 
 class LocationListResponse(PaginationMixin, BaseModel):

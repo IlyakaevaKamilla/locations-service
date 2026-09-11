@@ -37,7 +37,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_regions_country_id'), 'regions', ['country_id'], unique=False)
     op.create_table('cities',
-    sa.Column('region_id', sa.Integer(), nullable=True),
+    sa.Column('region_id', sa.Integer(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=150), nullable=False),
     sa.ForeignKeyConstraint(['region_id'], ['regions.id'], ondelete='CASCADE'),
