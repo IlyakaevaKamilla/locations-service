@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +23,8 @@ from app.schemas.locations import (
 
 StrFilter = str | list[str]
 IntFilter = int | list[int]
+
+logger = logging.getLogger("location_service")
 
 
 class LocationService:
@@ -100,6 +104,7 @@ class LocationService:
             self.session, location_id, only_active=only_active
         )
         if location is None:
+            logger.warning("Location with id: %s not found", location_id)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Location not found"
             )
@@ -152,6 +157,7 @@ class LocationService:
             "levels": self._missing_values(location_in.levels, options["levels"]),
         }
         if any(missing.values()):
+            logger.warning("Creation is failed, missing relations: %s", missing)
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=missing
             )
@@ -164,18 +170,24 @@ class LocationService:
         try:
             location = await admin_create_location(self.session, location_in)
         except CityNotFoundError as e:
+            logger.warning(
+                "Location creation failed, city with id: %s not found", e.city_id
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"City with id {e.city_id} not found.",
             ) from e
+        logger.info("Location with id %s was successfully created", location.id)
         return location
 
     async def admin_delete_location(self, location_id: int) -> None:
         deleted = await admin_delete_location_by_id(self.session, location_id)
         if not deleted:
+            logger.warning("Location with id %s is not found for deletion", location_id)
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Location not found"
             )
+        logger.info("Location with id %s was successfully deleted", location_id)
 
 
 async def get_location_service(
