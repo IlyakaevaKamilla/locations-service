@@ -28,8 +28,8 @@ class LocationRead(LocationBase):
 
     id: int
     city: str = Field(min_length=1, max_length=255)
-    region: str | None = Field(default=None, min_length=1, max_length=255)
-    country: str | None = Field(default=None, max_length=120)
+    region: str | None = Field(min_length=1, max_length=255)
+    country: str | None = Field(max_length=120)
     created_at: datetime
     updated_at: datetime
 
