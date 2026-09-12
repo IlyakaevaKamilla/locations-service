@@ -41,7 +41,7 @@ class AdminRegionCreate(ReferenceBase):
 
 
 class AdminCityCreate(ReferenceBase):
-    region_id: int | None = None
+    region_id: int
 
 
 class AdminRegionUpdate(ReferenceBase):

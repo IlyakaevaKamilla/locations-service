@@ -116,7 +116,7 @@ class City(ReferenceMixin, Base):
     __tablename__ = "cities"
 
     region_id: Mapped[int] = mapped_column(
-        ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=True
+        ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=False
     )
 
     region: Mapped[Region] = relationship(back_populates="cities")
