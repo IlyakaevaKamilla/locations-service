@@ -31,8 +31,8 @@ def _split_query_values(
     return result or None
 
 
-def _parse_activity_ids(values: Any) -> list[int] | None:
-    """Parse repeated and comma-separated activity ids from query parameters."""
+def _parse_int_ids(values: Any, *, field_name: str = "id") -> list[int] | None:
+    """Parse repeated and comma-separated integer ids from query parameters."""
     if values is not None and not isinstance(values, list):
         values = [values]
 
@@ -42,18 +42,18 @@ def _parse_activity_ids(values: Any) -> list[int] | None:
     if raw_values is None:
         return None
 
-    activity_ids: list[int] = []
+    ids: list[int] = []
     for value in raw_values:
         try:
-            activity_id = int(value)
+            id_value = int(value)
         except ValueError as exc:
-            raise ValueError("activity_id must be an integer") from exc
-        if activity_id < 1:
-            raise ValueError("activity_id must be greater than or equal to 1")
-        if activity_id > MAX_INT32:
+            raise ValueError(f"{field_name} must be an integer") from exc
+        if id_value < 1:
+            raise ValueError(f"{field_name} must be greater than or equal to 1")
+        if id_value > MAX_INT32:
             continue
-        activity_ids.append(activity_id)
-    return activity_ids
+        ids.append(id_value)
+    return ids
 
 
 def _parse_location_id(location_id: Annotated[str, Path()]) -> int:
@@ -73,7 +73,7 @@ def _parse_location_id(location_id: Annotated[str, Path()]) -> int:
 
 ActivityIdQuery = Annotated[
     list[int] | None,
-    BeforeValidator(_parse_activity_ids),
+    BeforeValidator(_parse_int_ids),
     Query(
         description="Activity ids. Supports repeated values and CSV, e.g. activity_id=1&activity_id=2 or 1,2."
     ),
@@ -81,7 +81,13 @@ ActivityIdQuery = Annotated[
 LocationIdPath = Annotated[int, Depends(_parse_location_id)]
 SearchQuery = Annotated[str | None, Query(max_length=255)]
 ReferenceNameQuery = Annotated[str | None, Query(min_length=3, max_length=150)]
-ReferenceIdQuery = Annotated[int | list[int] | None, Query()]
+ReferenceIdQuery = Annotated[
+    list[int] | None,
+    BeforeValidator(_parse_int_ids),
+    Query(
+        description="Reference ids. Supports repeated values and CSV, e.g. activity_id=1&activity_id=2 or 1,2."
+    ),
+]
 StringListQuery = Annotated[list[str] | None, Query()]
 LimitQuery = Annotated[int, Query(ge=1, le=100)]
 OffsetQuery = Annotated[int, Query(ge=0)]

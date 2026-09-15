@@ -20,7 +20,7 @@ from app.crud.locations import (  # noqa E402
 )
 from app.db.models import Location, LocationActivity, LocationLevel, LocationStyle
 from app.routes.query_params import (
-    _parse_activity_ids,
+    _parse_int_ids,
     _parse_location_id,
     _split_query_values,
 )
@@ -291,20 +291,20 @@ def test_split_query_values_rejects_long_values():
     assert exc_info.value.status_code == 422
 
 
-def test_parse_activity_ids_supports_repeated_and_csv_values():
-    assert _parse_activity_ids(["12, 15", "18"]) == [12, 15, 18]
+def test_parse_int_ids_supports_repeated_and_csv_values():
+    assert _parse_int_ids(["12, 15", "18"]) == [12, 15, 18]
 
 
-def test_parse_activity_ids_ignores_values_above_int32():
-    assert _parse_activity_ids(["2147483648"]) == []
-    assert _parse_activity_ids(["12", "2147483648"]) == [12]
+def test_parse_int_ids_ignores_values_above_int32():
+    assert _parse_int_ids(["2147483648"]) == []
+    assert _parse_int_ids(["12", "2147483648"]) == [12]
 
 
-def test_parse_activity_ids_rejects_invalid_values():
+def test_parse_int_ids_rejects_invalid_values():
     with pytest.raises(ValueError) as exc_info:
-        _parse_activity_ids(["12, abc"])
+        _parse_int_ids(["12, abc"])
 
-    assert str(exc_info.value) == "activity_id must be an integer"
+    assert str(exc_info.value) == "id must be an integer"
 
 
 def test_parse_location_id_rejects_values_above_int32_as_not_found():
