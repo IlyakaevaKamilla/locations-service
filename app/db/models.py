@@ -94,7 +94,9 @@ class Country(ReferenceMixin, Base):
     __tablename__ = "countries"
     _name_unique = True
 
-    regions: Mapped[list[Region]] = relationship(back_populates="country")
+    regions: Mapped[list[Region]] = relationship(
+        back_populates="country", passive_deletes=True
+    )
 
 
 class Region(ReferenceMixin, Base):
@@ -105,7 +107,9 @@ class Region(ReferenceMixin, Base):
     )
 
     country: Mapped[Country] = relationship(back_populates="regions")
-    cities: Mapped[list[City]] = relationship(back_populates="region")
+    cities: Mapped[list[City]] = relationship(
+        back_populates="region", passive_deletes=True
+    )
 
     __table_args__ = (
         UniqueConstraint("name", "country_id", name="uq_region_name_country"),
@@ -121,7 +125,9 @@ class City(ReferenceMixin, Base):
 
     region: Mapped[Region] = relationship(back_populates="cities")
     locations: Mapped[list[Location]] = relationship(
-        back_populates="city_rel", foreign_keys="Location.city_id"
+        back_populates="city_rel",
+        foreign_keys="Location.city_id",
+        passive_deletes=True,
     )
 
     __table_args__ = (
@@ -136,7 +142,7 @@ class Location(Base):
     slug: Mapped[str] = mapped_column(String(150), unique=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
     city_id: Mapped[int] = mapped_column(
-        ForeignKey("cities.id"), nullable=False, index=True
+        ForeignKey("cities.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
