@@ -7,7 +7,6 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
-    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -122,6 +121,8 @@ class City(ReferenceMixin, Base):
     region_id: Mapped[int] = mapped_column(
         ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=False
     )
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
 
     region: Mapped[Region] = relationship(back_populates="cities")
     locations: Mapped[list[Location]] = relationship(
@@ -145,9 +146,9 @@ class Location(Base):
         ForeignKey("cities.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
-    distance_to_city_km: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    distance_to_city_km: Mapped[float] = mapped_column(Float, nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
