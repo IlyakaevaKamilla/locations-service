@@ -22,13 +22,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from psycopg2.errors import ForeignKeyViolation, UniqueViolation
+from asyncpg.exceptions import ForeignKeyViolationError as AsyncpgFKError
+from asyncpg.exceptions import UniqueViolationError as AsyncpgUniqueError
 from sqlalchemy.exc import IntegrityError
 
 from app.crud.references import (
     admin_create_reference,
     admin_delete_reference,
     admin_update_reference,
+    get_city_names_by_country,
+    get_city_names_by_region,
     list_locations_by_reference,
     list_references,
 )
@@ -287,6 +290,88 @@ def test_admin_delete_reference_returns_false_when_missing(monkeypatch):
     assert session.commits == 0
 
 
+@pytest.mark.asyncio
+async def test_admin_delete_reference_rolls_back_on_integrity_error(monkeypatch):
+    session = FakeSession()
+    style = make_reference(Style, id=1)
+
+    async def fake_get_reference_by_id(db, model, item_id):
+        return style
+
+    async def fake_delete(obj):
+        return None
+
+    async def fake_commit():
+        raise IntegrityError("DELETE", None, AsyncpgFKError())
+
+    monkeypatch.setattr(
+        "app.crud.references.get_reference_by_id", fake_get_reference_by_id
+    )
+    monkeypatch.setattr(session, "delete", fake_delete)
+    monkeypatch.setattr(session, "commit", fake_commit)
+
+    with pytest.raises(IntegrityError):
+        await admin_delete_reference(session, Style, 1)
+
+    assert session.rollbacks == 1
+
+
+def test_get_city_names_by_region_returns_names(monkeypatch):
+    session = FakeSession()
+
+    async def fake_execute(statement):
+        return SimpleNamespace(
+            scalars=lambda: SimpleNamespace(all=lambda: ["Сочи", "Адлер"])
+        )
+
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    result = asyncio.run(get_city_names_by_region(session, region_id=1))
+
+    assert list(result) == ["Сочи", "Адлер"]
+
+
+def test_get_city_names_by_region_returns_empty_when_no_cities(monkeypatch):
+    session = FakeSession()
+
+    async def fake_execute(statement):
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
+
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    result = asyncio.run(get_city_names_by_region(session, region_id=99))
+
+    assert list(result) == []
+
+
+def test_get_city_names_by_country_returns_names(monkeypatch):
+    session = FakeSession()
+
+    async def fake_execute(statement):
+        return SimpleNamespace(
+            scalars=lambda: SimpleNamespace(all=lambda: ["Сочи", "Краснодар"])
+        )
+
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    result = asyncio.run(get_city_names_by_country(session, country_id=1))
+
+    assert list(result) == ["Сочи", "Краснодар"]
+
+
+def test_get_city_names_by_country_returns_empty_when_no_cities(monkeypatch):
+    session = FakeSession()
+
+    async def fake_execute(statement):
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(all=list))
+
+    monkeypatch.setattr(session, "execute", fake_execute)
+
+    result = asyncio.run(get_city_names_by_country(session, country_id=99))
+
+    assert list(result) == []
+
+
 def test_list_locations_by_reference_joins_style_junction(monkeypatch):
     session = FakeSession()
     location = make_location(id=1)
@@ -431,7 +516,7 @@ async def test_create_reference_raises_400_on_duplicate(monkeypatch):
         assert db is session
         assert model is Style
         assert name == "mountain"
-        raise IntegrityError("INSERT", None, UniqueViolation())
+        raise IntegrityError("INSERT", None, AsyncpgUniqueError())
 
     monkeypatch.setattr(
         "app.services.references.admin_create_reference", fake_admin_create_reference
@@ -529,7 +614,7 @@ async def test_admin_create_region_raises_404_when_country_missing(monkeypatch):
         assert model is Region
         assert name == "Кубань"
         assert kwargs["country_id"] == 999
-        raise IntegrityError("INSERT", None, ForeignKeyViolation())
+        raise IntegrityError("INSERT", None, AsyncpgFKError())
 
     monkeypatch.setattr(
         "app.services.references.admin_create_reference", fake_admin_create_reference
@@ -550,7 +635,7 @@ async def test_admin_create_region_raises_400_on_duplicate(monkeypatch):
     async def fake_admin_create_reference(db, model, name, **kwargs):
         assert model is Region
         assert kwargs["country_id"] == 1
-        raise IntegrityError("INSERT", None, UniqueViolation())
+        raise IntegrityError("INSERT", None, AsyncpgUniqueError())
 
     monkeypatch.setattr(
         "app.services.references.admin_create_reference", fake_admin_create_reference
@@ -585,7 +670,9 @@ def test_admin_create_city_linked_to_region(monkeypatch):
         "app.services.references.admin_create_reference", fake_admin_create_reference
     )
 
-    result = asyncio.run(service.admin_create_city("Сочи", region_id=1))
+    result = asyncio.run(
+        service.admin_create_city("Сочи", region_id=1, latitude=43.59, longitude=39.73)
+    )
 
     assert result.id == 1
     assert result.name == "Сочи"
@@ -601,14 +688,16 @@ async def test_admin_create_city_raises_404_when_region_missing(monkeypatch):
         assert model is City
         assert name == "Адлер"
         assert kwargs["region_id"] == 999
-        raise IntegrityError("INSERT", None, ForeignKeyViolation())
+        raise IntegrityError("INSERT", None, AsyncpgFKError())
 
     monkeypatch.setattr(
         "app.services.references.admin_create_reference", fake_admin_create_reference
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await service.admin_create_city("Адлер", region_id=999)
+        await service.admin_create_city(
+            "Адлер", region_id=999, latitude=43.45, longitude=39.92
+        )
 
     assert exc_info.value.status_code == 404
     assert "Region" in exc_info.value.detail
@@ -622,14 +711,16 @@ async def test_admin_create_city_raises_400_on_duplicate(monkeypatch):
     async def fake_admin_create_reference(db, model, name, **kwargs):
         assert model is City
         assert kwargs["region_id"] == 1
-        raise IntegrityError("INSERT", None, UniqueViolation())
+        raise IntegrityError("INSERT", None, AsyncpgUniqueError())
 
     monkeypatch.setattr(
         "app.services.references.admin_create_reference", fake_admin_create_reference
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await service.admin_create_city("Сочи", region_id=1)
+        await service.admin_create_city(
+            "Сочи", region_id=1, latitude=43.59, longitude=39.73
+        )
 
     assert exc_info.value.status_code == 400
     assert "already exists" in exc_info.value.detail
@@ -760,7 +851,7 @@ async def test_admin_update_city_raises_404_when_region_missing(monkeypatch):
         assert model is City
         assert item_id == 1
         assert kwargs["region_id"] == 999
-        raise IntegrityError("UPDATE", None, ForeignKeyViolation())
+        raise IntegrityError("UPDATE", None, AsyncpgFKError())
 
     monkeypatch.setattr(
         "app.services.references.admin_update_reference", fake_admin_update_reference
@@ -783,7 +874,7 @@ async def test_admin_update_region_raises_404_when_country_missing(monkeypatch):
         assert model is Region
         assert item_id == 1
         assert kwargs["country_id"] == 999
-        raise IntegrityError("UPDATE", None, ForeignKeyViolation())
+        raise IntegrityError("UPDATE", None, AsyncpgFKError())
 
     monkeypatch.setattr(
         "app.services.references.admin_update_reference", fake_admin_update_reference
@@ -866,7 +957,7 @@ async def test_update_reference_raises_400_on_duplicate_name(monkeypatch):
         assert model is Style
         assert item_id == 1
         assert kwargs == {"name": "new"}
-        raise IntegrityError("UPDATE", None, UniqueViolation())
+        raise IntegrityError("UPDATE", None, AsyncpgUniqueError())
 
     monkeypatch.setattr(
         "app.services.references.admin_update_reference", fake_admin_update_reference
@@ -931,7 +1022,7 @@ async def test_delete_city_raises_409_when_location_linked(monkeypatch):
         assert db is session
         assert model is City
         assert item_id == 1
-        raise IntegrityError("statement", None, ForeignKeyViolation())
+        raise IntegrityError("statement", None, AsyncpgFKError())
 
     monkeypatch.setattr(
         "app.services.references.admin_delete_reference",
@@ -949,26 +1040,30 @@ async def test_delete_city_raises_409_when_location_linked(monkeypatch):
 async def test_delete_region_raises_409_when_city_linked_to_location(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
-    region = make_reference(
-        Region,
-        id=1,
-        cities=[make_reference(City, id=1), make_reference(City, id=2)],
-    )
 
     async def fake_get_reference_by_id(db, model, item_id):
         assert db is session
         assert model is Region
         assert item_id == 1
-        return region
+        return make_reference(Region, id=1)
+
+    async def fake_get_city_names_by_region(db, region_id):
+        assert db is session
+        assert region_id == 1
+        return ["Сочи", "Адлер"]
 
     async def fake_admin_delete_reference(db, model, item_id):
         assert db is session
         assert model is Region
         assert item_id == 1
-        raise IntegrityError("statement", None, ForeignKeyViolation())
+        raise IntegrityError("statement", None, AsyncpgFKError())
 
     monkeypatch.setattr(
         "app.services.references.get_reference_by_id", fake_get_reference_by_id
+    )
+    monkeypatch.setattr(
+        "app.services.references.get_city_names_by_region",
+        fake_get_city_names_by_region,
     )
     monkeypatch.setattr(
         "app.services.references.admin_delete_reference",
@@ -986,37 +1081,30 @@ async def test_delete_region_raises_409_when_city_linked_to_location(monkeypatch
 async def test_delete_country_raises_409_when_city_linked_to_location(monkeypatch):
     session = FakeSession()
     service = ReferenceService(session)
-    country = make_reference(
-        Country,
-        id=1,
-        regions=[
-            make_reference(
-                Region,
-                id=1,
-                cities=[make_reference(City, id=1)],
-            ),
-            make_reference(
-                Region,
-                id=2,
-                cities=[make_reference(City, id=2), make_reference(City, id=3)],
-            ),
-        ],
-    )
 
     async def fake_get_reference_by_id(db, model, item_id):
         assert db is session
         assert model is Country
         assert item_id == 1
-        return country
+        return make_reference(Country, id=1)
+
+    async def fake_get_city_names_by_country(db, country_id):
+        assert db is session
+        assert country_id == 1
+        return ["Сочи", "Краснодар", "Адлер"]
 
     async def fake_admin_delete_reference(db, model, item_id):
         assert db is session
         assert model is Country
         assert item_id == 1
-        raise IntegrityError("statement", None, ForeignKeyViolation())
+        raise IntegrityError("statement", None, AsyncpgFKError())
 
     monkeypatch.setattr(
         "app.services.references.get_reference_by_id", fake_get_reference_by_id
+    )
+    monkeypatch.setattr(
+        "app.services.references.get_city_names_by_country",
+        fake_get_city_names_by_country,
     )
     monkeypatch.setattr(
         "app.services.references.admin_delete_reference",
@@ -1308,13 +1396,17 @@ def test_create_regions_passes_name_and_country_id():
 def test_create_cities_passes_name_and_region_id():
     service = SimpleNamespace()
 
-    async def fake_admin_create_city(name, region_id):
+    async def fake_admin_create_city(name, region_id, latitude, longitude):
         service.name = name
         service.region_id = region_id
+        service.latitude = latitude
+        service.longitude = longitude
         return SimpleNamespace()
 
     service.admin_create_city = fake_admin_create_city
-    city_data = SimpleNamespace(name="Сочи", region_id=1)
+    city_data = SimpleNamespace(
+        name="Сочи", region_id=1, latitude=43.59, longitude=39.73
+    )
 
     asyncio.run(create_cities(service=service, city_data=city_data))
 

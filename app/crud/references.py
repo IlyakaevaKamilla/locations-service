@@ -4,10 +4,11 @@ from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.locations import _load_location_options
-from app.db.models import Location
+from app.db.models import City, Location, Region
 from app.types import JunctionT, ModelT
 
 
@@ -53,7 +54,11 @@ async def admin_create_reference(
 ) -> ModelT:
     item = model(**fields)
     session.add(item)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise
     await session.refresh(item)
     return item
 
@@ -84,8 +89,34 @@ async def admin_delete_reference(
         return False
 
     await session.delete(item)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise
     return True
+
+
+async def get_city_names_by_region(
+    session: AsyncSession, region_id: int
+) -> Sequence[str]:
+    """Return names of all cities belonging to a region."""
+    statement = select(City.name).where(City.region_id == region_id)
+    result = await session.execute(statement)
+    return result.scalars().all()
+
+
+async def get_city_names_by_country(
+    session: AsyncSession, country_id: int
+) -> Sequence[str]:
+    """Return names of all cities belonging to a country (through its regions)."""
+    statement = (
+        select(City.name)
+        .join(Region, City.region_id == Region.id)
+        .where(Region.country_id == country_id)
+    )
+    result = await session.execute(statement)
+    return result.scalars().all()
 
 
 async def list_locations_by_reference(
