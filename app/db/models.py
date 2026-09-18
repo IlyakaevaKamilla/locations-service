@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
 
 from geoalchemy2 import Geography
+from geoalchemy2.elements import WKBElement
 from geoalchemy2.shape import to_shape
 from sqlalchemy import (
     Boolean,
@@ -125,7 +125,7 @@ class City(ReferenceMixin, Base):
     region_id: Mapped[int] = mapped_column(
         ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=False
     )
-    coords: Mapped[Any] = mapped_column(
+    coords: Mapped[WKBElement] = mapped_column(
         Geography(geometry_type="POINT", srid=4326),
         nullable=False,
     )
@@ -139,11 +139,11 @@ class City(ReferenceMixin, Base):
 
     @property
     def latitude(self) -> float:
-        return to_shape(self.coords).y  # y = широта
+        return to_shape(self.coords).y  # y - широта
 
     @property
     def longitude(self) -> float:
-        return to_shape(self.coords).x  # x = долгота
+        return to_shape(self.coords).x  # x - долгота
 
     __table_args__ = (
         UniqueConstraint("name", "region_id", name="uq_city_name_region"),
@@ -160,7 +160,7 @@ class Location(Base):
         ForeignKey("cities.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    coords: Mapped[Any] = mapped_column(
+    coords: Mapped[WKBElement] = mapped_column(
         Geography(geometry_type="POINT", srid=4326),
         nullable=False,
     )
@@ -225,8 +225,8 @@ class Location(Base):
 
     @property
     def latitude(self) -> float:
-        return to_shape(self.coords).y  # y = широта
+        return to_shape(self.coords).y  # y - широта
 
     @property
     def longitude(self) -> float:
-        return to_shape(self.coords).x  # x = долгота
+        return to_shape(self.coords).x  # x - долгота
