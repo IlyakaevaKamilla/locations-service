@@ -478,6 +478,8 @@ def test_admin_create_location_links_styles_and_levels(monkeypatch):
         model_dump=lambda exclude_unset: {
             "name": "Роза Хутор",
             "city_id": 1,
+            "latitude": 43.68,
+            "longitude": 40.29,
             "activity_ids": [12],
             "styles": ["mountain"],
             "levels": ["beginner"],
@@ -529,6 +531,8 @@ def test_admin_create_location_with_empty_lists(monkeypatch):
         model_dump=lambda exclude_unset: {
             "name": "Роза Хутор",
             "city_id": 1,
+            "latitude": 43.68,
+            "longitude": 40.29,
             "activity_ids": [],
             "styles": [],
             "levels": [],

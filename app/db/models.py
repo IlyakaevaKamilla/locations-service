@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
 
+from geoalchemy2 import Geography
+from geoalchemy2.shape import to_shape
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Float,
     ForeignKey,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -121,8 +125,10 @@ class City(ReferenceMixin, Base):
     region_id: Mapped[int] = mapped_column(
         ForeignKey("regions.id", ondelete="CASCADE"), index=True, nullable=False
     )
-    latitude: Mapped[float] = mapped_column(Float, nullable=False)
-    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    coords: Mapped[Any] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326),
+        nullable=False,
+    )
 
     region: Mapped[Region] = relationship(back_populates="cities")
     locations: Mapped[list[Location]] = relationship(
@@ -130,6 +136,14 @@ class City(ReferenceMixin, Base):
         foreign_keys="Location.city_id",
         passive_deletes=True,
     )
+
+    @property
+    def latitude(self) -> float:
+        return to_shape(self.coords).y  # y = широта
+
+    @property
+    def longitude(self) -> float:
+        return to_shape(self.coords).x  # x = долгота
 
     __table_args__ = (
         UniqueConstraint("name", "region_id", name="uq_city_name_region"),
@@ -146,9 +160,11 @@ class Location(Base):
         ForeignKey("cities.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    latitude: Mapped[float] = mapped_column(Float, nullable=False)
-    longitude: Mapped[float] = mapped_column(Float, nullable=False)
-    distance_to_city_km: Mapped[float] = mapped_column(Float, nullable=True)
+    coords: Mapped[Any] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326),
+        nullable=False,
+    )
+    distance_to_city_km: Mapped[Decimal] = mapped_column(Numeric(10, 3), nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -206,3 +222,11 @@ class Location(Base):
             if self.city_rel and self.city_rel.region and self.city_rel.region.country
             else None
         )
+
+    @property
+    def latitude(self) -> float:
+        return to_shape(self.coords).y  # y = широта
+
+    @property
+    def longitude(self) -> float:
+        return to_shape(self.coords).x  # x = долгота

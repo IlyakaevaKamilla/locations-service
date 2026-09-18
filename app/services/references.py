@@ -34,6 +34,7 @@ from app.schemas.references import (
     ReferenceRead,
 )
 from app.types import JunctionT, ModelT, ParentModelT
+from app.utils.geo import make_coords
 
 logger = logging.getLogger("location_service")
 
@@ -222,11 +223,17 @@ class ReferenceService:
             raise
         return ReferenceRead.model_validate(item)
 
-    async def admin_create_city(self, name: str, region_id: int) -> ReferenceRead:
+    async def admin_create_city(
+        self, name: str, region_id: int, latitude: float, longitude: float
+    ) -> ReferenceRead:
         """Create a city linked to a region."""
         try:
             item = await admin_create_reference(
-                self.session, model=City, name=name, region_id=region_id
+                self.session,
+                model=City,
+                name=name,
+                region_id=region_id,
+                coords=make_coords(latitude=latitude, longitude=longitude),
             )
         except IntegrityError as exc:
             self._raise_integrity_error(

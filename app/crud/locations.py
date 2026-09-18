@@ -21,6 +21,7 @@ from app.db.models import (
 from app.exceptions import CityNotFoundError
 from app.schemas.admin import AdminLocationCreate
 from app.types import JunctionT
+from app.utils.geo import make_coords
 
 StrFilter = str | Sequence[str]
 IntFilter = int | Sequence[int]
@@ -344,15 +345,17 @@ async def admin_create_location(
     levels = location_data.pop("levels", [])
 
     city_id = location_data.pop("city_id")
+    latitude = location_data.pop(
+        "latitude"
+    )  # времено без расчетов для проверки создания
+    longitude = location_data.pop("longitude")
+    coords = make_coords(latitude, longitude)
 
     city = await session.execute(select(City).where(City.id == city_id))
     if city.scalar_one_or_none() is None:
         raise CityNotFoundError(city_id)
 
-    new_location = Location(
-        **location_data,
-        city_id=city_id,
-    )
+    new_location = Location(**location_data, city_id=city_id, coords=coords)
     new_location.activities_rel = [
         LocationActivity(activity_id=activity_id) for activity_id in activity_ids
     ]

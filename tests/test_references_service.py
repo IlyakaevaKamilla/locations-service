@@ -670,7 +670,9 @@ def test_admin_create_city_linked_to_region(monkeypatch):
         "app.services.references.admin_create_reference", fake_admin_create_reference
     )
 
-    result = asyncio.run(service.admin_create_city("Сочи", region_id=1))
+    result = asyncio.run(
+        service.admin_create_city("Сочи", region_id=1, latitude=43.59, longitude=39.73)
+    )
 
     assert result.id == 1
     assert result.name == "Сочи"
@@ -693,7 +695,9 @@ async def test_admin_create_city_raises_404_when_region_missing(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await service.admin_create_city("Адлер", region_id=999)
+        await service.admin_create_city(
+            "Адлер", region_id=999, latitude=43.45, longitude=39.92
+        )
 
     assert exc_info.value.status_code == 404
     assert "Region" in exc_info.value.detail
@@ -714,7 +718,9 @@ async def test_admin_create_city_raises_400_on_duplicate(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await service.admin_create_city("Сочи", region_id=1)
+        await service.admin_create_city(
+            "Сочи", region_id=1, latitude=43.59, longitude=39.73
+        )
 
     assert exc_info.value.status_code == 400
     assert "already exists" in exc_info.value.detail
@@ -1390,13 +1396,17 @@ def test_create_regions_passes_name_and_country_id():
 def test_create_cities_passes_name_and_region_id():
     service = SimpleNamespace()
 
-    async def fake_admin_create_city(name, region_id):
+    async def fake_admin_create_city(name, region_id, latitude, longitude):
         service.name = name
         service.region_id = region_id
+        service.latitude = latitude
+        service.longitude = longitude
         return SimpleNamespace()
 
     service.admin_create_city = fake_admin_create_city
-    city_data = SimpleNamespace(name="Сочи", region_id=1)
+    city_data = SimpleNamespace(
+        name="Сочи", region_id=1, latitude=43.59, longitude=39.73
+    )
 
     asyncio.run(create_cities(service=service, city_data=city_data))
 

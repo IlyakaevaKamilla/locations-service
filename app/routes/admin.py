@@ -155,7 +155,10 @@ async def create_cities(
 ) -> ReferenceRead:
     """Create a city linked to an existing region."""
     return await service.admin_create_city(
-        name=city_data.name, region_id=city_data.region_id
+        name=city_data.name,
+        region_id=city_data.region_id,
+        latitude=city_data.latitude,
+        longitude=city_data.longitude,
     )
 
 

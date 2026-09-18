@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,7 +27,7 @@ class LocationRead(LocationBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    distance_to_city_km: int | None = Field(default=None, ge=0)
+    distance_to_city_km: Decimal | None = Field(default=None, ge=0)
     city: str = Field(min_length=1, max_length=255)
     region: str | None = Field(min_length=1, max_length=255)
     country: str | None = Field(max_length=120)
