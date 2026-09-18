@@ -101,7 +101,8 @@ async def get_city_names_by_region(
     session: AsyncSession, region_id: int
 ) -> Sequence[str]:
     """Return names of all cities belonging to a region."""
-    result = await session.execute(select(City.name).where(City.region_id == region_id))
+    statement = select(City.name).where(City.region_id == region_id)
+    result = await session.execute(statement)
     return result.scalars().all()
 
 
@@ -109,11 +110,12 @@ async def get_city_names_by_country(
     session: AsyncSession, country_id: int
 ) -> Sequence[str]:
     """Return names of all cities belonging to a country (through its regions)."""
-    result = await session.execute(
+    statement = (
         select(City.name)
         .join(Region, City.region_id == Region.id)
         .where(Region.country_id == country_id)
     )
+    result = await session.execute(statement)
     return result.scalars().all()
 
 

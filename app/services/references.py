@@ -33,9 +33,12 @@ from app.schemas.references import (
     ReferenceLocationsResponse,
     ReferenceRead,
 )
-from app.types import JunctionT, ModelT
+from app.types import JunctionT, ModelT, ParentModelT
 
 logger = logging.getLogger("location_service")
+
+FK_ERROR = "23503"
+UNIQUE_ERROR = "23505"
 
 
 class ReferenceService:
@@ -45,6 +48,49 @@ class ReferenceService:
     @staticmethod
     def _sql_error_code(exc: IntegrityError) -> str | None:
         return getattr(exc.orig, "pgcode", None) or getattr(exc.orig, "sqlstate", None)
+
+    @staticmethod
+    def _raise_integrity_error(
+        exc: IntegrityError,
+        action: str,
+        item_name: str,
+        base_model: type[ModelT],
+        parent_id: int | None = None,
+        parent_model: type[ParentModelT] | None = None,
+    ):
+        code = ReferenceService._sql_error_code(exc)
+        if code == UNIQUE_ERROR:
+            logger.warning(
+                "%s %s is failed, %s already exists",
+                base_model.__name__,
+                action,
+                item_name,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{base_model.__name__} with name '{item_name}' already exists",
+            ) from exc
+        if code == FK_ERROR:
+            parent_name = parent_model.__name__ if parent_model else "Parent"
+            logger.warning(
+                "%s %s is failed, parent_id %s not found",
+                base_model.__name__,
+                action,
+                parent_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"{parent_name} with id {parent_id} not found",
+            ) from exc
+
+    @staticmethod
+    def _raise_409_if_fk_violation(exc: IntegrityError, detail: str) -> None:
+        code = ReferenceService._sql_error_code(exc)
+        if code == FK_ERROR:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=detail,
+            ) from exc
 
     async def _get_reference_or_404(self, model: type[ModelT], item_id: int) -> ModelT:
         """Get reference by ID or raise 404."""
@@ -165,22 +211,14 @@ class ReferenceService:
                 self.session, model=Region, name=name, country_id=country_id
             )
         except IntegrityError as exc:
-            code = self._sql_error_code(exc)
-            if code == "23505":  # UniqueViolationError
-                logger.warning("Region creation is failed, %s already exists", name)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Region with name '{name}' already exists",
-                ) from exc
-            if code == "23503":  # ForeignKeyViolationError
-                logger.warning(
-                    "Region creation is failed, country with id %s not found",
-                    country_id,
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Country with id {country_id} not found",
-                ) from exc
+            self._raise_integrity_error(
+                exc=exc,
+                action="creation",
+                item_name=name,
+                base_model=Region,
+                parent_id=country_id,
+                parent_model=Country,
+            )
             raise
         return ReferenceRead.model_validate(item)
 
@@ -191,21 +229,14 @@ class ReferenceService:
                 self.session, model=City, name=name, region_id=region_id
             )
         except IntegrityError as exc:
-            code = self._sql_error_code(exc)
-            if code == "23505":  # UniqueViolationError
-                logger.warning("City creation is failed, %s already exists", name)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"City with name '{name}' already exists",
-                ) from exc
-            if code == "23503":  # ForeignKeyViolationError
-                logger.warning(
-                    "City creation is failed, region with id %s not found", region_id
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Region with id {region_id} not found",
-                ) from exc
+            self._raise_integrity_error(
+                exc=exc,
+                action="creation",
+                item_name=name,
+                base_model=City,
+                parent_id=region_id,
+                parent_model=Region,
+            )
             raise
         return ReferenceRead.model_validate(item)
 
@@ -213,15 +244,9 @@ class ReferenceService:
         try:
             item = await admin_create_reference(self.session, model=model, name=name)
         except IntegrityError as exc:
-            code = self._sql_error_code(exc)
-            if code == "23505":  # UniqueViolationError
-                logger.warning(
-                    "Creation failed, %s %s already exists", model.__name__, name
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"{model.__name__} with name '{name}' already exists",
-                ) from exc
+            self._raise_integrity_error(
+                exc=exc, action="creation", item_name=name, base_model=model
+            )
             raise
         logger.info("%s was successfully created", model.__name__)
         return ReferenceRead.model_validate(item)
@@ -261,26 +286,14 @@ class ReferenceService:
                 self.session, model=model, item_id=item_id, **fields
             )
         except IntegrityError as exc:
-            code = self._sql_error_code(exc)
-            if code == "23505":  # UniqueViolationError
-                logger.warning(
-                    "Update is failed, %s %s already exists",
-                    model.__name__,
-                    fields["name"],
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"{model.__name__} with name '{fields['name']}' already exists",
-                ) from exc
-            if code == "23503":  # ForeignKeyViolationError
-                logger.warning(
-                    "Update is failed, parent with id %s not found",
-                    fields.get("region_id") or fields.get("country_id"),
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Parent reference with id {fields.get('region_id') or fields.get('country_id')} not found",
-                ) from exc
+            parent_id = fields.get("region_id") or fields.get("country_id")
+            self._raise_integrity_error(
+                exc=exc,
+                action="update",
+                item_name=fields["name"],
+                base_model=model,
+                parent_id=parent_id,
+            )
             raise
         if updated_item is None:
             logger.warning("%s with id %s not found", model.__name__, item_id)
@@ -370,12 +383,10 @@ class ReferenceService:
             logger.warning(
                 "City deletion is failed, city with id %s linked to locations", city_id
             )
-            code = self._sql_error_code(exc)
-            if code == "23503":  # UniqueViolationError
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Cannot delete: City is linked to locations. Move or delete those locations first",
-                )
+            self._raise_409_if_fk_violation(
+                exc=exc,
+                detail="Cannot delete: City is linked to locations. Move or delete those locations first",
+            )
             raise
 
     async def admin_delete_region(self, region_id: int) -> None:
@@ -388,12 +399,10 @@ class ReferenceService:
                 "Region deletion is failed, cities linked to locations: %s",
                 linked_cities,
             )
-            code = self._sql_error_code(exc)
-            if code == "23503":  # UniqueViolationError
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Cannot delete: {', '.join(linked_cities)} are linked to locations. Move or delete those locations first",
-                )
+            self._raise_409_if_fk_violation(
+                exc=exc,
+                detail=f"Cannot delete: {', '.join(linked_cities)} are linked to locations. Move or delete those locations first",
+            )
             raise
 
     async def admin_delete_country(self, country_id: int) -> None:
@@ -406,12 +415,11 @@ class ReferenceService:
                 "Country deletion is failed, cities linked to locations: %s",
                 linked_cities,
             )
-            code = self._sql_error_code(exc)
-            if code == "23503":  # UniqueViolationError
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Cannot delete: City {', '.join(linked_cities)} is linked to locations. Move or delete those locations first",
-                )
+            self._raise_409_if_fk_violation(
+                exc=exc,
+                detail=f"Cannot delete: {', '.join(linked_cities)} are linked to locations. Move or delete those locations first",
+            )
+
             raise
 
     async def _delete_reference(self, model: type[ModelT], item_id: int) -> None:
